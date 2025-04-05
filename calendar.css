@@ -8,9 +8,7 @@
 }
 .calendar-cell {
   border: 1px solid #ddd;
-  /* border-radius: 6px; */
   padding: 6px;
-  text-align: center;
   background: #f9f9f9;
 }
 .calendar-date {
@@ -25,7 +23,7 @@
 .calendar-event {
   font-size: 0.8em;
   background: #ddd;
-  padding: 4px;
+  padding: 8px;
   border-radius: 4px;
   margin-top: 6px;
 }
@@ -41,5 +39,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: normal;
+  word-break: keep-all;
   cursor: pointer;
 }
