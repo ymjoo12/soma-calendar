@@ -18,7 +18,7 @@ function extractEventDetailFromHTML(html) {
 
 const addToCalendarBtn = (ev) => {
   if (isAppleDevice()) {
-    return `<button class="add-to-calendar" data-id="${ev.url}" style="margin-top: 4px; background-color: #1493D2; color:white; border-radius: 20px; padding:4px; width: 100%;">
+    return `<button class="add-to-calendar" data-id="${ev.url}" style="margin-top: 8px; background-color: #1493D2; color:white; border-radius: 4px; padding:4px; width: 100%;">
   📅 캘린더에 추가
   </button>`;
   }
@@ -62,11 +62,14 @@ async function generateCalendarElement() {
             }" title="${ev.title}">
               <a href="${
                 ev.url
-              }" style="margin-bottom: 4px; font-weight: bold;">
+              }" style="margin-bottom: 4px; font-size: larger; font-weight: bold;">
                 <div class="ellipsis-2-lines" style="color: #114C9D;">${
                   ev.title
                 }</div>
-                <div style="">${ev.timeRangeStr} ${ev.author}</div>
+                <div style="font-size: small; margin-bottom: 4px;">${
+                  ev.author
+                }</div>
+                <div style="font-size: smaller;">${ev.timeRangeStr}</div>
               </a>
               ${addToCalendarBtn(ev)}
             </div>
@@ -103,9 +106,9 @@ async function updateCalendarElement() {
     const html = await res.text();
     const eventDetails = extractEventDetailFromHTML(html);
     const { loc, npeople } = eventDetails;
-    let target = ev.querySelector("a > div:nth-child(2)");
+    let target = ev.querySelector("a > div:nth-child(3)");
     let newElement = document.createElement("div");
-    newElement.innerHTML = `<div style="">${loc} / ${npeople}</div>`;
+    newElement.innerHTML = `<div style="font-size: smaller">${loc} / ${npeople}</div>`;
     target.after(newElement);
   }
 }
