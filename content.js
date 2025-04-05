@@ -1,44 +1,3 @@
-function normalizeTimeStr(time) {
-  const [h, m, s] = time.split(":");
-  return `${h.padStart(2, "0")}:${m.padStart(2, "0")}:${s.padStart(2, "0")}`;
-}
-
-function extractEventListFromHTML(html) {
-  const container = document.createElement("div");
-  container.innerHTML = html;
-
-  const rows = container.querySelectorAll(
-    "#contentsList > div > div > div.boardlist > div.tbl-ovx > table > tbody > tr"
-  );
-  const events = [];
-
-  for (const row of rows) {
-    const tds = row.querySelectorAll("td");
-    if (tds.length < 6) continue;
-
-    const applied = tds[6].innerText.trim();
-    if (applied !== "접수완료") continue;
-
-    const url = tds[2].querySelector("a")?.href;
-    const title = tds[2].innerText.trim();
-    const author = tds[3].innerText.trim();
-    if (!url || !title || !author) continue;
-
-    const dateHTML = tds[4].innerHTML
-      .trim()
-      .replace(/&nbsp;/g, "")
-      .trim();
-    const [dateStr, timeRangeStr] = dateHTML
-      .split("<br>")
-      .map((str) => str.trim());
-    if (!dateStr || !timeRangeStr) continue;
-
-    events.push({ url, title, author, dateStr, timeRangeStr });
-  }
-
-  return events;
-}
-
 function extractEventDetailFromHTML(html) {
   const container = document.createElement("div");
   container.innerHTML = html;
@@ -55,43 +14,6 @@ function extractEventDetailFromHTML(html) {
     .innerText.trim();
 
   return { loc, npeople };
-}
-
-async function getAllMentoringEvents() {
-  const events = [];
-
-  const baseUrl = location.href;
-  const totalStr = document.querySelector(".bbs-total strong.color-blue")
-    ?.nextSibling?.textContent;
-  const total = parseInt(totalStr?.replace(":", "")?.trim()) || 0;
-  const totalPages = Math.ceil(total / 10);
-
-  for (let page = 1; page <= totalPages; page++) {
-    const url = new URL(baseUrl);
-    url.searchParams.set("pageIndex", page.toString());
-
-    const res = await fetch(url, { credentials: "include" });
-    const html = await res.text();
-    const pageEvents = extractEventListFromHTML(html);
-    events.push(...pageEvents);
-  }
-
-  for (let ev of events) {
-    const datePart = ev.dateStr.split("(")[0].trim(); // "2025-04-10"
-    const [startTime, endTime] = ev.timeRangeStr
-      .split("~")
-      .map((s) => normalizeTimeStr(s.trim())); // "18:30:00"
-
-    ev.startAt = new Date(`${datePart}T${startTime}`);
-    ev.endAt = new Date(`${datePart}T${endTime}`);
-    ev.timeRangeStr = `${startTime.replace(/:\d{2}$/, "")} ~ ${endTime.replace(
-      /:\d{2}$/,
-      ""
-    )}`;
-  }
-
-  events.sort((a, b) => a.startAt - b.startAt);
-  return events;
 }
 
 const addToCalendarBtn = (ev) => {
