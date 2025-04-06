@@ -21,7 +21,7 @@
       "css": ["calendar.css"]
     },
     {
-      "matches":["https://www.swmaestro.org/sw/mypage/mentoLec/list.do?menuNo=200046*"],
+      "matches":["https://www.swmaestro.org/sw/mypage/mentoLec/list.do?*"],
       "js": ["utils.js", "mentoring.js"]
     },
     {
