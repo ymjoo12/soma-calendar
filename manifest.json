@@ -7,7 +7,10 @@
   },
   "description": "멘토링/특강 게시판에 시간표를 띄워줍니다.",
   "permissions": ["activeTab", "scripting"],
-  "host_permissions": ["https://swmaestro.org/*"],
+  "host_permissions": [
+    "https://swmaestro.org/*",
+    "https://www.swmaestro.org/*"
+  ],
   "action": {
     "default_popup": "popup.html"
   },
