@@ -19,7 +19,8 @@
     },
     {
       "matches":["https://www.swmaestro.org/sw/mypage/mentoLec/list.do?menuNo=200046*"],
-      "js": ["utils.js", "mentoring.js"]
+      "js": ["utils.js", "mentoring.js"],
+      "css": ["calendar.css"]
     },
     {
       "matches":["https://www.swmaestro.org/sw/mypage/mentoLec/view.do?*"],
