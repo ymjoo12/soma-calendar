@@ -104,9 +104,9 @@ function convertLectureDictionaryWithoutDate(lectures){
   for(let i=0;i<lectures.length;i++){
     dateStrWithoutDate = lectures[i].dateStr.slice(0, -3)
       if(!lecturesDictionary.hasOwnProperty(dateStrWithoutDate)){
-        lecturesDictionary[dateStrWithoutDate] = []
+        lecturesDictionary[dateStrWithoutDate] = {}
       }
-      lecturesDictionary[dateStrWithoutDate].push(lectures[i].timeRangeStr)
+      lecturesDictionary[dateStrWithoutDate][lectures[i].title] = lectures[i].timeRangeStr
   }
   
   return lecturesDictionary
