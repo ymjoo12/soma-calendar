@@ -1,24 +1,40 @@
 function extractEventDetailFromHTML(html) {
   const container = document.createElement("div");
   container.innerHTML = html;
-
-  const loc = container
-    .querySelector(
-      "#board > div > div.top > div:nth-child(4) > div:nth-child(1) > div"
-    )
-    .innerText.trim();
-  const npeople = container
-    .querySelector(
-      "#board > div > div.top > div:nth-child(4) > div:nth-child(2) > div"
-    )
-    .innerText.trim();
-
-  return { loc, npeople };
+  return {
+    loc: container
+      .querySelector("div.top > div:nth-child(4) > div:nth-child(1) > div.c")
+      .innerText.trim(),
+    npeople: container
+      .querySelector("div.top > div:nth-child(4) > div:nth-child(2) > div.c")
+      .innerText.trim(),
+    startAt: new Date(
+      container
+        .querySelector("div.top > div:nth-child(3) > div:nth-child(1) > div.c")
+        .innerText.trim()
+        .replace(/\./g, "-")
+    ),
+    endAt: new Date(
+      container
+        .querySelector("div.top > div:nth-child(3) > div:nth-child(2) > div.c")
+        .innerText.trim()
+        .replace(/\./g, "-")
+    ),
+    title: container
+      .querySelector("div.top > div:nth-child(2) > div:nth-child(1) > div.c")
+      .innerText.trim(),
+    author: container
+      .querySelector("div.top > div:nth-child(2) > div:nth-child(2) > div.c")
+      .innerText.trim(),
+    url: container
+      .querySelector("div > a")
+      .href,
+  };
 }
 
 const addToCalendarBtn = (ev) => {
   if (isAppleDevice()) {
-    return `<button class="add-to-calendar" data-id="${ev.url}" style="margin-top: 8px; background-color: #1493D2; color:white; border-radius: 4px; padding:4px; width: 100%;">
+    return `<button class="add-to-calendar" data-id="${ev.url}" style="margin-top: 8px; background-color: #114c9d; color:white; border-radius: 4px; padding:4px; width: 100%;">
   📅 캘린더에 추가
   </button>`;
   }
@@ -92,25 +108,34 @@ async function main() {
     "#contentsList > div > div > ul.tabs-st1.col2"
   );
   let newElement = await generateCalendarElement();
-
   target.after(newElement);
-  const events = await getAllMentoringEvents();
-  attachCalendarButtons(events);
+
 }
 
 async function updateCalendarElement() {
   const events = document.querySelectorAll("div.calendar-event");
   for (let ev of events) {
-    const url = ev.querySelector("a").href;
-    const res = await fetch(url, { credentials: "include" });
+    const res = await fetch(ev.querySelector("a").href, { credentials: "include" });
     const html = await res.text();
     const eventDetails = extractEventDetailFromHTML(html);
-    const { loc, npeople } = eventDetails;
+    const { loc, npeople, startAt, endAt, title, author, url } = eventDetails;
+    console.log(eventDetails);
     let target = ev.querySelector("a > div:nth-child(3)");
     let newElement = document.createElement("div");
     newElement.innerHTML = `<div style="font-size: smaller">${loc} / ${npeople}</div>`;
     target.after(newElement);
+    // let btn = ev.querySelector(".add-to-calendar");
+    // if (btn) {
+    //   btn.dataset.id = url;
+    // } else {
+    //   btn = document.createElement("button");
+    //   btn.className = "add-to-calendar";
+    //   btn.dataset.id = url;
+    //   btn.innerText = "📅 캘린더에 추가";
+    //   ev.appendChild(btn);
+    // }
   }
+  // attachCalendarButtons(await getAllMentoringEvents());
 }
 
 function attachCalendarButtons(events) {

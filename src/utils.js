@@ -51,14 +51,11 @@ async function getTotalpages(baseUrl){
 async function getAllMentoringEvents() {
   const events = [];
 
-  const baseUrl = "https://www.swmaestro.org/sw/mypage/userAnswer/history.do?menuNo=200047";
-  const totalPages = await getTotalpages(baseUrl)
+  const path = "/sw/mypage/userAnswer/history.do?menuNo=200047";
+  const totalPages = await getTotalpages(path)
 
   for (let page = 1; page <= totalPages; page++) {
-    const url = new URL(baseUrl);
-    url.searchParams.set("pageIndex", page.toString());
-
-    const res = await fetch(url, { credentials: "include" });
+    const res = await fetch(path + "&pageIndex=" + page, { credentials: "include" });
     const html = await res.text();
     const pageEvents = extractEventListFromHTML(html);
     events.push(...pageEvents);
