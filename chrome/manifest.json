@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "소마 멘토링 시간표",
-  "version": "25.04.05",
+  "version": "25.4.7",
   "icons": {
     "128": "128.png"
   },
@@ -17,8 +17,8 @@
   "content_scripts": [
     {
       "matches": ["https://*.swmaestro.org/sw/mypage/userAnswer/history.do*", "https://swmaestro.org/sw/mypage/userAnswer/history.do*"],
-      "js": ["src/utils.js", "src/content.js"],
-      "css": ["src/calendar.css"]
+      "js": ["utils.js", "content.js"],
+      "css": ["calendar.css"]
     },
     {
       "matches":["https://www.swmaestro.org/sw/mypage/mentoLec/list.do?menuNo=200046*"],
@@ -27,7 +27,7 @@
     },
     {
       "matches":["https://*.swmaestro.org/sw/mypage/mentoLec/view.do*", "https://swmaestro.org/sw/mypage/mentoLec/view.do*"],
-      "js": ["src/utils.js", "src/mentoring_item.js"]
+      "js": ["utils.js", "mentoring_item.js"]
     }
   ]
 }

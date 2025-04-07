@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "소마 멘토링 시간표",
+  "version": "25.4.7",
+  "icons": {
+    "128": "128.png"
+  },
+  "description": "멘토링/특강 게시판에 시간표를 띄워줍니다.",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["https://swmaestro.org/*"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.swmaestro.org/sw/mypage/userAnswer/history.do*"],
+      "js": ["utils.js", "content.js"],
+      "css": ["calendar.css"]
+    },
+    {
+      "matches": [
+        "https://www.swmaestro.org/sw/mypage/mentoLec/list.do?menuNo=200046*"
+      ],
+      "js": ["utils.js", "mentoring.js"]
+    },
+    {
+      "matches": ["https://www.swmaestro.org/sw/mypage/mentoLec/view.do?*"],
+      "js": ["utils.js", "mentoring_item.js"]
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "strict_min_version": "109.0"
+    }
+  }
+}
