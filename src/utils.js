@@ -108,3 +108,9 @@ function convertLectureDictionaryWithoutDate(lectures){
   
   return lecturesDictionary
 }
+
+function getLectureId(url){
+  const params = new URL(url).searchParams;
+  const qustnrSn = params.get('qustnrSn');
+  return qustnrSn
+}
