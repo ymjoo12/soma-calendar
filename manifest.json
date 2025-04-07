@@ -17,17 +17,22 @@
   "content_scripts": [
     {
       "matches": ["https://*.swmaestro.org/sw/mypage/userAnswer/history.do*", "https://swmaestro.org/sw/mypage/userAnswer/history.do*"],
-      "js": ["utils.js", "content.js"],
-      "css": ["calendar.css"]
+      "js": ["src/utils.js", "src/content.js"],
+      "css": ["src/calendar.css"]
     },
     {
       "matches":["https://www.swmaestro.org/sw/mypage/mentoLec/list.do?menuNo=200046*"],
-      "js": ["utils.js", "mentoring.js"],
-      "css": ["calendar.css"]
+      "js": ["src/utils.js", "src/mentoring.js"],
+      "css": ["src/calendar.css"]
     },
     {
       "matches":["https://*.swmaestro.org/sw/mypage/mentoLec/view.do*", "https://swmaestro.org/sw/mypage/mentoLec/view.do*"],
-      "js": ["utils.js", "mentoring_item.js"]
+      "js": ["src/utils.js", "src/mentoring_item.js"]
     }
-  ]
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "strict_min_version": "109.0"
+    }
+  }
 }
