@@ -42,3 +42,40 @@
   word-break: keep-all;
   cursor: pointer;
 }
+
+.overlap-popup {
+  position: fixed; /* absolute에서 fixed로 변경하여 스크롤 시에도 마우스 위치에 유지 */
+  background-color: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  padding: 10px;
+  z-index: 1000;
+  font-size: 12px;
+  max-width: 300px;
+  display: none;
+  pointer-events: none; /* 팝업이 마우스 이벤트를 가로채지 않도록 설정 */
+  transition: left 0.05s, top 0.05s; /* 부드러운 이동 효과 추가 */
+}
+
+.overlap-popup h4 {
+  margin: 0 0 8px 0;
+  color: #114c9d;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 5px;
+}
+
+.overlap-lecture {
+  padding: 5px;
+  margin-bottom: 5px;
+  background-color: #f5f5f5;
+  border-radius: 3px;
+}
+
+.overlap-lecture:last-child {
+  margin-bottom: 0;
+}
+
+.conflict-item {
+  position: relative;
+}
