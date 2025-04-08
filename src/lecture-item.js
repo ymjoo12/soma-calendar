@@ -18,13 +18,13 @@ getAllLectures().then((lectures) => {
     }
     const targetList = lecturesDictionary[datePart]
     for (let j = 0; j < targetList.length; j++) {
-        const [targetStartTime, targetEndTime ] = targetList[j].split(" ~ ")
+        const [targetStartTime, targetEndTime ] = targetList[j].split(" ~ ");
         if (getMin(endTime) < getMin(targetStartTime))
             break
-
+        
         if (getMin(startTime) > getMin(targetEndTime))
             continue
-
+        
         alert("시간이 겹치는 강의입니다. 신청하시기 전에 주의해주세요.")
         break
     }
