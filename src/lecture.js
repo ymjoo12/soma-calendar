@@ -1,4 +1,4 @@
-getAllMentoringEvents().then((lectures) => {
+getAllLectures().then((lectures) => {
     const lecturesDictionary = convertLectureDictionary(lectures);
     const lectureDates = document.querySelectorAll("#listFrm > div.boardlist.mt50 > table > tbody > tr > td:nth-child(4)");
     

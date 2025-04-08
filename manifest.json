@@ -22,12 +22,12 @@
     },
     {
       "matches":["https://www.swmaestro.org/sw/mypage/mentoLec/list.do?menuNo=200046*"],
-      "js": ["src/utils.js", "src/mentoring.js"],
+      "js": ["src/utils.js", "src/lecture.js"],
       "css": ["src/calendar.css"]
     },
     {
       "matches":["https://*.swmaestro.org/sw/mypage/mentoLec/view.do*", "https://swmaestro.org/sw/mypage/mentoLec/view.do*"],
-      "js": ["src/utils.js", "src/mentoring_item.js"]
+      "js": ["src/utils.js", "src/lecture-item.js"]
     }
   ],
   "browser_specific_settings": {

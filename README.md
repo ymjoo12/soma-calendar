@@ -42,20 +42,20 @@
 1. [Releases](https://github.com/ymjoo12/soma-calendar/releases) 페이지에서 최신 버전의 zip 파일을 다운로드합니다.
 2. 압축을 해제합니다.
 3. 브라우저에 맞는 방법으로 확장 프로그램을 로드합니다.
-4. `soma-calendar` 폴더를 선택합니다.
+4. `soma-calendar` 폴더(압축해제된 폴더)를 선택합니다.
 
 ### 🔧 Chrome
 
 1. 크롬 주소창에 [`chrome://extensions`](chrome://extensions) 입력
 2. 우측 상단의 "개발자 모드 (Developer mode)" 설정
 3. "압축해제된 확장 프로그램 로드 (Load unpacked)" 클릭
-4. `soma-calendar` 폴더 선택
+4. `soma-calendar` 폴더(압축해제된 폴더)를 선택합니다.
 
 ### 🔧 Firefox
 
 1. 주소창에 [`about:debugging#/runtime/this-firefox`](about:debugging#/runtime/this-firefox) 입력
 2. "임시로 확장 프로그램 로드" 클릭
-3. `soma-calendar` 폴더 선택
+3. `soma-calendar` 폴더(압축해제된 폴더) 혹은 폴더 내 파일을 선택합니다.
 
 ### 🔧 개발 버전 설치
 
