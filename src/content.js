@@ -1,4 +1,4 @@
-let events = [];
+let lectures = [];
 
 async function generateCalendarElement() {
   const today = new Date();
@@ -6,7 +6,7 @@ async function generateCalendarElement() {
   startDate.setDate(today.getDate() - today.getDay());
   const days = [];
 
-  events = await getAllMentoringEvents();
+  lectures = await getAllLectures();
 
   for (let i = 0; i < 28; i++) {
     const date = new Date(startDate);
@@ -15,7 +15,7 @@ async function generateCalendarElement() {
     const weekday = ["일", "월", "화", "수", "목", "금", "토"][date.getDay()];
     const dayStr = `${date.getMonth() + 1}월 ${date.getDate()}일 (${weekday})`;
     const isToday = date.toDateString() === today.toDateString();
-    const filteredEvents = events.filter((ev) => {
+    const filteredEvents = lectures.filter((ev) => {
       const eventDate = new Date(ev.startAt);
       return eventDate.toDateString() === date.toDateString();
     });
@@ -30,7 +30,7 @@ async function generateCalendarElement() {
               (i < filteredEvents.length - 1 &&
                 filteredEvents[i + 1].startAt < ev.endAt);
             return `
-            <div class="calendar-event ${
+            <div class="calendar-lecture ${
               isConflict ? "conflict" : ""
             }" title="${ev.title}">
               <a href="${
@@ -75,27 +75,27 @@ async function main() {
 }
 
 async function updateCalendarElement() {
-  const eventElems = document.querySelectorAll("div.calendar-event");
+  const eventElems = document.querySelectorAll("div.calendar-lecture");
   for (let ev of eventElems) {
     const res = await fetch(ev.querySelector("a").href, { credentials: "include" });
     const html = await res.text();
-    const eventDetails = extractEventDetailFromHTML(html);
+    const eventDetails = extractLectureDetailFromHTML(html);
     const { loc, npeople } = eventDetails;
-    let event = events.find(
-      (event) => event.url === ev.querySelector("a").href
+    let lecture = lectures.find(
+      (lecture) => lecture.url === ev.querySelector("a").href
     );
-    event.loc = loc;
-    event.npeople = npeople;
+    lecture.loc = loc;
+    lecture.npeople = npeople;
     let locElem = ev.querySelector("#loc");
     locElem.innerText = loc;
     let npeopleElem = ev.querySelector("#npeople");
-    npeopleElem.innerText = npeople + (event.isApproved ? " [개설 확정]" : " [미승인]");
-    if (!event.isApproved) {
+    npeopleElem.innerText = npeople + (lecture.isApproved ? " [개설 확정]" : " [미승인]");
+    if (!lecture.isApproved) {
       npeopleElem.style.color = "red";
     }
     let exportBtn = ev.querySelector(".export-btn");
     exportBtn.addEventListener("click", (e) => {
-      const icsContent = generateICS(event);
+      const icsContent = generateICS(lecture);
       const blob = new Blob([icsContent], { type: "text/calendar" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
@@ -106,9 +106,10 @@ async function updateCalendarElement() {
     });
     let cancelBtn = ev.querySelector(".cancel-btn");
     cancelBtn.addEventListener("click", (e) => {
-      if (!event.isCancelable) alert("취소할 수 없는 항목입니다.");
+      console.log(lecture.lectureId);
+      if (!lecture.isCancelable) alert("취소할 수 없는 항목입니다.");
       else if (confirm("선택된 항목의 접수를 취소 하시겠습니까?")) {
-        cancelApply(event.applyId, event.lectureId, "mentoLec");
+        cancelApply(lecture.applyId, lecture.lectureId, "mentoLec");
       }
     });
   }
@@ -118,7 +119,7 @@ function isAppleDevice() {confirm()
   return /Macintosh|iPhone|iPad|iPod/.test(navigator.userAgent);
 }
 
-function generateICS(event) {
+function generateICS(lecture) {
   const pad = (n) => n.toString().padStart(2, "0");
   const toICSDate = (date) => {
     return (
@@ -133,12 +134,12 @@ function generateICS(event) {
     );
   };
 
-  const start = toICSDate(event.startAt);
-  const end = toICSDate(event.endAt);
-  const title = event.title.replace(/\n/g, " ");
-  const description = `멘토: ${event.author}`;
-  const location = event.loc;
-  const url = event.url;
+  const start = toICSDate(lecture.startAt);
+  const end = toICSDate(lecture.endAt);
+  const title = lecture.title.replace(/\n/g, " ");
+  const description = `멘토: ${lecture.author}`;
+  const location = lecture.loc;
+  const url = lecture.url;
 
   return `BEGIN:VCALENDAR
 VERSION:2.0

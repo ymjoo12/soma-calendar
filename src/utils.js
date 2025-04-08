@@ -3,12 +3,12 @@ function normalizeTimeStr(time) {
     return `${h.padStart(2, '0')}:${m.padStart(2, '0')}:${s.padStart(2, '0')}`;
   }
   
-function extractEventListFromHTML(html) {
+function extractLectureListFromHTML(html) {
   const container = document.createElement('div');
   container.innerHTML = html;
 
   const rows = container.querySelectorAll("#contentsList > div > div > div.boardlist > div.tbl-ovx > table > tbody > tr");
-  const events = [];
+  const lectures = [];
 
   for (const row of rows) {
     const tds = row.querySelectorAll("td");
@@ -38,13 +38,13 @@ function extractEventListFromHTML(html) {
     const applyId = isCancelable ? deleteScript.split("'")[1] : "";
     const lectureId = isCancelable ? deleteScript.split("'")[3] : "";
 
-    events.push({ url, title, author, dateStr, timeRangeStr, isApproved, isCancelable, applyId, lectureId });
+    lectures.push({ url, title, author, dateStr, timeRangeStr, isApproved, isCancelable, applyId, lectureId });
   }
 
-  return events;
+  return lectures;
 }
 
-function extractEventDetailFromHTML(html) {
+function extractLectureDetailFromHTML(html) {
   const container = document.createElement("div");
   container.innerHTML = html;
   return {
@@ -57,7 +57,7 @@ function extractEventDetailFromHTML(html) {
   };
 }
 
-async function getTotalpages(baseUrl){
+async function getTotalPages(baseUrl){
   const res = await fetch(baseUrl, { credentials: "include" });
   const html = await res.text();
   const container = document.createElement("div")
@@ -68,20 +68,20 @@ async function getTotalpages(baseUrl){
   return totalPages;
 }
 
-async function getAllMentoringEvents() {
-  const events = [];
+async function getAllLectures() {
+  const lectures = [];
 
   const path = "/sw/mypage/userAnswer/history.do?menuNo=200047";
-  const totalPages = await getTotalpages(path)
+  const totalPages = await getTotalPages(path)
 
   for (let page = 1; page <= totalPages; page++) {
     const res = await fetch(path + "&pageIndex=" + page, { credentials: "include" });
     const html = await res.text();
-    const pageEvents = extractEventListFromHTML(html);
-    events.push(...pageEvents);
+    const pageLectures = extractLectureListFromHTML(html);
+    lectures.push(...pageLectures);
   }
 
-  for (let ev of events) {
+  for (let ev of lectures) {
     const datePart = ev.dateStr.split("(")[0].trim(); // "2025-04-10"
     const [startTime, endTime] = ev.timeRangeStr
       .split("~")
@@ -95,8 +95,8 @@ async function getAllMentoringEvents() {
     )}`;
   }
 
-  events.sort((a, b) => a.startAt - b.startAt);
-  return events;
+  lectures.sort((a, b) => a.startAt - b.startAt);
+  return lectures;
 }
 
 function getMin(timeStr){
