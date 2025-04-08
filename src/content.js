@@ -29,6 +29,7 @@ async function generateCalendarElement() {
               (i > 0 && filteredEvents[i - 1].endAt > ev.startAt) ||
               (i < filteredEvents.length - 1 &&
                 filteredEvents[i + 1].startAt < ev.endAt);
+            const isAlreadyPassed = ev.startAt < today;
             return `
             <div class="calendar-lecture ${
               isConflict ? "conflict" : ""
@@ -47,8 +48,8 @@ async function generateCalendarElement() {
                 <div id="npeople" style="font-size: smaller;">인원수 로딩중..</div>
               </a>
               <div style="display: flex; gap: 6px; font-weight: bold;">
-                <button class="export-btn" data-id="${ev.url}" style="flex: 4;" title="Export (ICS로 내보내기)">📅 내보내기</button>
-                <button class="cancel-btn" data-id="${ev.url}" style="flex: 1; background-color: ${ev.isCancelable ? '#666' : '#ccc'};" title="Cancel (접수 취소)">취소</button>
+                <button class="export-btn" data-id="${ev.url}" style="flex: 5;" title="Export (ICS로 내보내기)">📅 내보내기</button>
+                <button class="cancel-btn ${isAlreadyPassed ? "already" : ""}" data-id="${ev.url}" style="flex: 1;" title="Cancel (접수 취소)">취소</button>
               </div>
             </div>
           `;
@@ -106,17 +107,14 @@ async function updateCalendarElement() {
     });
     let cancelBtn = ev.querySelector(".cancel-btn");
     cancelBtn.addEventListener("click", (e) => {
-      console.log(lecture.lectureId);
-      if (!lecture.isCancelable) alert("취소할 수 없는 항목입니다.");
+      if (lecture.startAt < new Date()) {
+        alert("이미 지나간 강의는 취소할 수 없습니다.");
+      }
       else if (confirm("선택된 항목의 접수를 취소 하시겠습니까?")) {
-        cancelApply(lecture.applyId, lecture.lectureId, "mentoLec");
+        cancelApply(lecture.applyId, lecture.lectureId);
       }
     });
   }
-}
-
-function isAppleDevice() {confirm()
-  return /Macintosh|iPhone|iPad|iPod/.test(navigator.userAgent);
 }
 
 function generateICS(lecture) {

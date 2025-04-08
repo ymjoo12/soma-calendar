@@ -96,14 +96,13 @@
 
 .cancel-btn {
   margin-top: 8px; 
-  background-color: #ccc;
-  color:white; 
+  color: #666;
   border-radius: 4px; 
   padding: 4px; 
   width: 100%;
   white-space: nowrap;
 }
 
-.cancel-btn .cancelable {
-  background-color: #666;
+.already {
+  cursor: not-allowed;
 }

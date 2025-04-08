@@ -1,4 +1,4 @@
-getAllMentoringEvents().then((lectures) => {
+getAllLectures().then((lectures) => {
     const lecturesDictionary = convertLectureDictionaryWithoutDate(lectures);
     const thisLectureId = getLectureId(location.href);
     for(let i = 0; i< lectures.length;i++){
