@@ -21,19 +21,17 @@ git clone https://github.com/ymjoo12/soma-calendar.git somaCalendar
 cd somaCalendar
 ```
 
-### 🔧 크롬
+### 🔧 Chrome
 
-1. `build-chrome.bat` 혹은 `build-chrome.sh` 실행  
-2. 크롬 주소창에 `chrome://extensions` 입력  
-3. "압축해제된 확장 프로그램 로드" 클릭  
-4. `dist/chrome` 폴더 선택
+1. 크롬 주소창에 `chrome://extensions` 입력  
+2. "압축해제된 확장 프로그램 로드" 클릭  
+3. `soma-calendar` 폴더 선택
 
-### 🔧 파이어폭스
+### 🔧 Firefox
 
-1. `build-firefox.bat` 혹은 `build-firefox.sh` 실행  
-2. 주소창에 `about:debugging` 입력  
-3. "임시로 확장 프로그램 로드" 클릭  
-4. `dist/firefox` 폴더 선택
+1. 주소창에 `about:debugging#/runtime/this-firefox` 입력  
+2. "임시로 확장 프로그램 로드" 클릭  
+3. `soma-calendar` 폴더 선택
 
 ---
 

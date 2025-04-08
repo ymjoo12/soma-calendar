@@ -31,10 +31,30 @@ function extractEventListFromHTML(html) {
       .map((str) => str.trim());
     if (!dateStr || !timeRangeStr) continue;
 
-    events.push({ url, title, author, dateStr, timeRangeStr });
+    const isApproved = tds[7].innerText.trim() === "OK";
+    
+    const isCancelable = tds[9].textContent.trim() === "[취소]";
+    const deleteScript = isCancelable ? tds[9].querySelector('a')['href'] : "";
+    const applyId = isCancelable ? deleteScript.split("'")[1] : "";
+    const lectureId = isCancelable ? deleteScript.split("'")[3] : "";
+
+    events.push({ url, title, author, dateStr, timeRangeStr, isApproved, isCancelable, applyId, lectureId });
   }
 
   return events;
+}
+
+function extractEventDetailFromHTML(html) {
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  return {
+    loc: container
+      .querySelector("div.top > div:nth-child(4) > div:nth-child(1) > div.c")
+      .innerText.trim(),
+    npeople: container
+      .querySelector("div.top > div:nth-child(4) > div:nth-child(2) > div.c")
+      .innerText.trim(),
+  };
 }
 
 async function getTotalpages(baseUrl){
@@ -113,4 +133,28 @@ function getLectureId(url){
   const params = new URL(url).searchParams;
   const qustnrSn = params.get('qustnrSn');
   return qustnrSn
+}
+
+function cancelApply(id, qustnrSn, gubun) {
+  if (confirm("선택된 항목의 접수를 취소 하시겠습니까?")) {
+    fetch("/sw/mypage/userAnswer/cancel.json", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: new URLSearchParams({
+        id: id,
+        qustnrSn: qustnrSn,
+        gubun: gubun
+      })
+    })
+      .then(response => response.json())
+      .then(data => {
+        alert("접수가 취소되었습니다.");
+        location.reload();
+      })
+      .catch(error => {
+        console.error(error);
+      });
+  }
 }

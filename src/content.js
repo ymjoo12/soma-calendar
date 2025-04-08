@@ -1,45 +1,4 @@
-function extractEventDetailFromHTML(html) {
-  const container = document.createElement("div");
-  container.innerHTML = html;
-  return {
-    loc: container
-      .querySelector("div.top > div:nth-child(4) > div:nth-child(1) > div.c")
-      .innerText.trim(),
-    npeople: container
-      .querySelector("div.top > div:nth-child(4) > div:nth-child(2) > div.c")
-      .innerText.trim(),
-    startAt: new Date(
-      container
-        .querySelector("div.top > div:nth-child(3) > div:nth-child(1) > div.c")
-        .innerText.trim()
-        .replace(/\./g, "-")
-    ),
-    endAt: new Date(
-      container
-        .querySelector("div.top > div:nth-child(3) > div:nth-child(2) > div.c")
-        .innerText.trim()
-        .replace(/\./g, "-")
-    ),
-    title: container
-      .querySelector("div.top > div:nth-child(2) > div:nth-child(1) > div.c")
-      .innerText.trim(),
-    author: container
-      .querySelector("div.top > div:nth-child(2) > div:nth-child(2) > div.c")
-      .innerText.trim(),
-    url: container
-      .querySelector("div > a")
-      .href,
-  };
-}
-
-const addToCalendarBtn = (ev) => {
-  if (isAppleDevice()) {
-    return `<button class="add-to-calendar" data-id="${ev.url}" style="margin-top: 8px; background-color: #114c9d; color:white; border-radius: 4px; padding:4px; width: 100%;">
-  📅 캘린더에 추가
-  </button>`;
-  }
-  return "";
-};
+let events = [];
 
 async function generateCalendarElement() {
   const today = new Date();
@@ -47,7 +6,7 @@ async function generateCalendarElement() {
   startDate.setDate(today.getDate() - today.getDay());
   const days = [];
 
-  const events = await getAllMentoringEvents();
+  events = await getAllMentoringEvents();
 
   for (let i = 0; i < 28; i++) {
     const date = new Date(startDate);
@@ -62,10 +21,8 @@ async function generateCalendarElement() {
     });
 
     days.push(`
-      <div class="calendar-cell">
-        <div class="calendar-date ${isToday ? "today" : ""}">${dayStr} ${
-      isToday ? " [오늘]" : ""
-    }</div>
+      <div class="calendar-cell ${isToday ? "today-bg" : ""}">
+        <div class="calendar-date ${isToday ? "today-text" : ""}">${dayStr} ${isToday ? " [오늘]" : ""}</div>
         ${filteredEvents
           .map((ev, i) => {
             const isConflict =
@@ -79,15 +36,20 @@ async function generateCalendarElement() {
               <a href="${
                 ev.url
               }" style="margin-bottom: 4px; font-size: larger; font-weight: bold;">
-                <div class="ellipsis-2-lines" style="color: #114C9D;">${
+                <div id="title" class="ellipsis-2-lines" style="color: #114C9D;">${
                   ev.title
                 }</div>
-                <div style="font-size: small; margin-bottom: 4px;">${
+                <div id="author" style="font-size: small; margin-bottom: 4px;">${
                   ev.author
                 }</div>
-                <div style="font-size: smaller;">${ev.timeRangeStr}</div>
+                <div id="time" style="font-size: smaller;">${ev.timeRangeStr}</div>
+                <div id="loc" style="font-size: smaller;">장소 로딩중..</div>
+                <div id="npeople" style="font-size: smaller;">인원수 로딩중..</div>
               </a>
-              ${addToCalendarBtn(ev)}
+              <div style="display: flex; gap: 6px; font-weight: bold;">
+                <button class="export-btn" data-id="${ev.url}" style="flex: 4;" title="Export (ICS로 내보내기)">📅 내보내기</button>
+                <button class="cancel-btn" data-id="${ev.url}" style="flex: 1; background-color: ${ev.isCancelable ? '#666' : '#ccc'};" title="Cancel (접수 취소)">취소</button>
+              </div>
             </div>
           `;
           })
@@ -113,39 +75,27 @@ async function main() {
 }
 
 async function updateCalendarElement() {
-  const events = document.querySelectorAll("div.calendar-event");
-  for (let ev of events) {
+  const eventElems = document.querySelectorAll("div.calendar-event");
+  for (let ev of eventElems) {
     const res = await fetch(ev.querySelector("a").href, { credentials: "include" });
     const html = await res.text();
     const eventDetails = extractEventDetailFromHTML(html);
-    const { loc, npeople, startAt, endAt, title, author, url } = eventDetails;
-    console.log(eventDetails);
-    let target = ev.querySelector("a > div:nth-child(3)");
-    let newElement = document.createElement("div");
-    newElement.innerHTML = `<div style="font-size: smaller">${loc} / ${npeople}</div>`;
-    target.after(newElement);
-    // let btn = ev.querySelector(".add-to-calendar");
-    // if (btn) {
-    //   btn.dataset.id = url;
-    // } else {
-    //   btn = document.createElement("button");
-    //   btn.className = "add-to-calendar";
-    //   btn.dataset.id = url;
-    //   btn.innerText = "📅 캘린더에 추가";
-    //   ev.appendChild(btn);
-    // }
-  }
-  // attachCalendarButtons(await getAllMentoringEvents());
-}
-
-function attachCalendarButtons(events) {
-  document.querySelectorAll(".add-to-calendar").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      const url = btn.dataset.id;
-      const ev = events.find((ev) => ev.url === url);
-      if (!ev) return;
-
-      const icsContent = generateICS(ev);
+    const { loc, npeople } = eventDetails;
+    let event = events.find(
+      (event) => event.url === ev.querySelector("a").href
+    );
+    event.loc = loc;
+    event.npeople = npeople;
+    let locElem = ev.querySelector("#loc");
+    locElem.innerText = loc;
+    let npeopleElem = ev.querySelector("#npeople");
+    npeopleElem.innerText = npeople + (event.isApproved ? " [개설 확정]" : " [미승인]");
+    if (!event.isApproved) {
+      npeopleElem.style.color = "red";
+    }
+    let exportBtn = ev.querySelector(".export-btn");
+    exportBtn.addEventListener("click", (e) => {
+      const icsContent = generateICS(event);
       const blob = new Blob([icsContent], { type: "text/calendar" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
@@ -154,10 +104,17 @@ function attachCalendarButtons(events) {
       link.click();
       document.body.removeChild(link);
     });
-  });
+    let cancelBtn = ev.querySelector(".cancel-btn");
+    cancelBtn.addEventListener("click", (e) => {
+      if (!event.isCancelable) alert("취소할 수 없는 항목입니다.");
+      else if (confirm("선택된 항목의 접수를 취소 하시겠습니까?")) {
+        cancelApply(event.applyId, event.lectureId, "mentoLec");
+      }
+    });
+  }
 }
 
-function isAppleDevice() {
+function isAppleDevice() {confirm()
   return /Macintosh|iPhone|iPad|iPod/.test(navigator.userAgent);
 }
 
@@ -180,7 +137,7 @@ function generateICS(event) {
   const end = toICSDate(event.endAt);
   const title = event.title.replace(/\n/g, " ");
   const description = `멘토: ${event.author}`;
-  const location = event.loc || "장소 미정";
+  const location = event.loc;
   const url = event.url;
 
   return `BEGIN:VCALENDAR

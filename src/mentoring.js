@@ -9,7 +9,7 @@ getAllMentoringEvents().then((lectures) => {
     
     for (let i = 0; i < lectureDates.length; i++) {
         const [datePart, timePart] = lectureDates[i].innerText.split("\n");
-        if(!lecturesDictionary.hasOwnProperty(datePart)){
+        if (!lecturesDictionary.hasOwnProperty(datePart)) {
             continue;
         }
         

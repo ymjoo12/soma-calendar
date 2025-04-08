@@ -16,7 +16,11 @@
   margin-bottom: 4px;
 }
 
-.today {
+.today-bg {
+  background: #e0f0ff;
+}
+
+.today-text {
   color: #114c9d;
 }
 
@@ -78,4 +82,28 @@
 
 .conflict-item {
   position: relative;
+}
+
+.export-btn {
+  margin-top: 8px;
+  background-color: #114c9d; 
+  color:white; 
+  border-radius: 4px; 
+  padding: 4px; 
+  width: 100%;
+  white-space: nowrap;
+}
+
+.cancel-btn {
+  margin-top: 8px; 
+  background-color: #ccc;
+  color:white; 
+  border-radius: 4px; 
+  padding: 4px; 
+  width: 100%;
+  white-space: nowrap;
+}
+
+.cancel-btn .cancelable {
+  background-color: #666;
 }
