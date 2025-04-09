@@ -1,3 +1,14 @@
+const PAGE_ONE = "1"
+
+function setPageIndexToOne(url){
+  if(url === undefined){
+    return undefined;
+  }
+  const _url = new URL(url);
+  _url.searchParams.set("pageIndex", PAGE_ONE);
+  return _url.toString();
+}
+
 function normalizeTimeStr(time) {
     const [h, m, s] = time.split(':');
     return `${h.padStart(2, '0')}:${m.padStart(2, '0')}:${s.padStart(2, '0')}`;
@@ -17,7 +28,7 @@ function extractLectureListFromHTML(html) {
     const applied = tds[6].innerText.trim();
     if (applied !== "접수완료") continue;
 
-    const url = tds[2].querySelector("a")?.href;
+    const url = setPageIndexToOne(tds[2].querySelector("a")?.href);
     const title = tds[2].innerText.trim();
     const author = tds[3].innerText.trim();
     if (!url || !title || !author) continue;
