@@ -81,12 +81,13 @@ async function updateCalendarElement() {
     const res = await fetch(ev.querySelector("a").href, { credentials: "include" });
     const html = await res.text();
     const eventDetails = extractLectureDetailFromHTML(html);
-    const { loc, npeople } = eventDetails;
+    const { loc, npeople, applyId } = eventDetails;
     let lecture = lectures.find(
-      (lecture) => lecture.url === ev.querySelector("a").href
+      (lec) => lec.url === ev.querySelector("a").href
     );
     lecture.loc = loc;
     lecture.npeople = npeople;
+    lecture.applyId = applyId;
     let locElem = ev.querySelector("#loc");
     locElem.innerText = loc;
     let npeopleElem = ev.querySelector("#npeople");
@@ -107,10 +108,10 @@ async function updateCalendarElement() {
     });
     let cancelBtn = ev.querySelector(".cancel-btn");
     cancelBtn.addEventListener("click", (e) => {
+      console.log(lecture);
       if (lecture.startAt < new Date()) {
         alert("이미 지나간 강의는 취소할 수 없습니다.");
-      }
-      else if (confirm("선택된 항목의 접수를 취소 하시겠습니까?")) {
+      } else {
         cancelApply(lecture.applyId, lecture.lectureId);
       }
     });

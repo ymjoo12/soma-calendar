@@ -32,11 +32,10 @@ function extractLectureListFromHTML(html) {
     if (!dateStr || !timeRangeStr) continue;
 
     const isApproved = tds[7].innerText.trim() === "OK";
-    const cancelScript = tds[8].querySelector("a")?.href;
-    const applyId = cancelScript?.split("'")[1];
-    const lectureId = cancelScript?.split("'")[3];
+    const params = new URL(url).searchParams;
+    const lectureId = params.get('qustnrSn');
 
-    lectures.push({ url, title, author, dateStr, timeRangeStr, isApproved, applyId, lectureId });
+    lectures.push({ url, title, author, dateStr, timeRangeStr, isApproved, lectureId });
   }
 
   return lectures;
@@ -45,6 +44,7 @@ function extractLectureListFromHTML(html) {
 function extractLectureDetailFromHTML(html) {
   const container = document.createElement("div");
   container.innerHTML = html;
+  const cancelBtn = container.querySelector("#contentsList > div > div > div.btn_w-st1.mt50 > button.btn-st1.bg-black_r");
   return {
     loc: container
       .querySelector("div.top > div:nth-child(4) > div:nth-child(1) > div.c")
@@ -52,6 +52,7 @@ function extractLectureDetailFromHTML(html) {
     npeople: container
       .querySelector("div.top > div:nth-child(4) > div:nth-child(2) > div.c")
       .innerText.trim(),
+    applyId: cancelBtn ? cancelBtn.getAttribute('onclick').split("'")[3] : null,
   };
 }
 
@@ -133,53 +134,31 @@ function getLectureId(url){
   return qustnrSn
 }
 
-function cancelAnswer(id, qustnrSn, gubun) {
+function cancelApply(applySn, qustnrSn) {
   if (confirm("선택된 항목의 접수를 취소 하시겠습니까?")) {
-    fetch("/sw/mypage/userAnswer/cancel.json", {
+    fetch("/sw/mypage/mentoLec/applyCancel.json", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded"
       },
       body: new URLSearchParams({
-        id: id,
-        qustnrSn: qustnrSn,
-        gubun: gubun
+        id: applySn,
+        qustnrSn: qustnrSn
       })
     })
-      .then(response => response.json())
-      .then(data => {
-        alert("접수가 취소되었습니다.");
+    .then(res => res.json())
+    .then(data => {
+      const { resultCode, cancelAt } = data;
+      if (resultCode === "success") {
+        if (cancelAt === "Y") {
+          alert("취소 하였습니다.");
+        } else {
+          alert("강의 날 이후 부터는 취소가 불가능 합니다.");
+        }
         location.reload();
-      })
-      .catch(error => {
-        console.error(error);
-      });
-  }
-}
-
-function cancelApply(applySn, qustnrSn) {
-  // fetch("/sw/mypage/mentoLec/applyCancel.json", {
-  //   method: "POST",
-  //   headers: {
-  //     "Content-Type": "application/x-www-form-urlencoded"
-  //   },
-  //   body: new URLSearchParams({
-  //     id: applySn,
-  //     qustnrSn: qustnrSn
-  //   })
-  // })
-  // .then(res => res.json())
-  // .then(data => {
-  //   const { resultCode, cancelAt } = data;
-    if (resultCode === "success") {
-      if (cancelAt === "Y") {
-        alert("취소 하였습니다.");
       } else {
-        alert("강의 날 이후 부터는 취소가 불가능 합니다.");
+        alert("작업에 실패하였습니다.");
       }
-      location.reload();
-    } else {
-      alert("작업에 실패하였습니다.");
-    }
-  // });
+    });
+  }
 }
