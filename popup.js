@@ -2,12 +2,13 @@
 
 function compareVersions(v1, v2) {
   const toNums = (v) => v.split('.').map(Number);
-  const [a1, b1, c1] = toNums(v1);
-  const [a2, b2, c2] = toNums(v2);
+  const [a1, b1, c1, d1] = toNums(v1);
+  const [a2, b2, c2, d2] = toNums(v2);
 
   if (a1 !== a2) return a1 - a2;
   if (b1 !== b2) return b1 - b2;
-  return c1 - c2;
+  if (c1 !== c2) return c1 - c2;
+  return d1 - d2;
 }
 
 const localVersion = chrome.runtime.getManifest().version;
