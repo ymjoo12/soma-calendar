@@ -108,7 +108,6 @@ async function updateCalendarElement() {
     });
     let cancelBtn = ev.querySelector(".cancel-btn");
     cancelBtn.addEventListener("click", (e) => {
-      console.log(lecture);
       if (lecture.startAt < new Date()) {
         alert("이미 지나간 강의는 취소할 수 없습니다.");
       } else {
