@@ -1,16 +1,19 @@
 #history-calendar {
+  border: 1px solid #ddd;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
+  gap: 1px;
+  background: #ddd;
   margin-top: 20px;
   margin-bottom: 30px;
   font-family: sans-serif;
 }
+
 .calendar-cell {
-  border: 1px solid #ddd;
   padding: 6px;
-  background: #f9f9f9;
+  background: #f9f9f9; 
 }
+
 .calendar-date {
   font-weight: bold;
   margin-bottom: 4px;
@@ -22,6 +25,7 @@
 
 .today-text {
   color: #114c9d;
+  white-space: nowrap;
 }
 
 .calendar-lecture {
@@ -45,6 +49,9 @@
   white-space: normal;
   word-break: keep-all;
   cursor: pointer;
+  --lh: 1.4em;
+  line-height: var(--lh);
+  height: calc(var(--lh) * 2);
 }
 
 .overlap-popup {
