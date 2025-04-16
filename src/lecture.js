@@ -24,11 +24,11 @@ getAllLectures().then((lectures) => {
         for (let j = 0; j < targetList.length; j++) {
             let [targetStartMin, targetEndMin] = targetList[j].split(" ~ ");
 
-            if (getMin(endMin) < getMin(targetStartMin)) {
+            if (getMin(endMin) <= getMin(targetStartMin)) {
                 continue;
             }
 
-            if (getMin(startMin) > getMin(targetEndMin)) {
+            if (getMin(startMin) >= getMin(targetEndMin)) {
                 continue;
             }
 
