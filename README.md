@@ -2,7 +2,6 @@
 
 본인이 접수한 멘토링/특강 내역을 접수 내역 페이지에서 시간표 형태로 확인할 수 있는 브라우저 확장 프로그램입니다.
 
----
 
 ## 📖 주요 기능
 
@@ -28,14 +27,12 @@
 - 소마 홈페이지, 멘토링/특강 접수 내역 페이지로 이동할 수 있는 버튼을 제공합니다.
 - 확장 프로그램의 버전 정보를 표시합니다.
 
----
 
 ## 🧩 지원 브라우저
 
 - **Chrome** (호환 브라우저 포함)
 - **Firefox**
 
----
 
 ## 📦 설치 방법
 
@@ -62,3 +59,17 @@
 ```bash
 git clone https://github.com/ymjoo12/soma-calendar.git
 ```
+- git pull을 통해 최신 버전으로 업데이트 가능합니다.
+
+
+## 🙌 Contributors
+
+| 기여자 | 기여 내용 | 관련 PR |
+|---|---|----|
+| [@ymjoo12](https://github.com/ymjoo12) | 초기 버전 개발 및 유지보수 | – |
+| [@younghun1124](https://github.com/younghun1124) | 도메인 이슈 해결 | [#2](https://github.com/ymjoo12/soma-calendar/pull/2) |
+| [@alsgud8311](https://github.com/alsgud8311) | ICS 파일 생성 기능 | [#3](https://github.com/ymjoo12/soma-calendar/pull/3) |
+| [@skymygo](https://github.com/skymygo) | 멘토링 일정 중복 경고 / 버그 수정 | [#4](https://github.com/ymjoo12/soma-calendar/pull/4), [#8](https://github.com/ymjoo12/soma-calendar/pull/8), [#17](https://github.com/ymjoo12/soma-calendar/pull/17), [#20](https://github.com/ymjoo12/soma-calendar/pull/20) |
+| [@SioJeong](https://github.com/SioJeong) | UI 개선 | [#5](https://github.com/ymjoo12/soma-calendar/pull/5) |
+| [@3ae3ae](https://github.com/3ae3ae) | Firefox 지원 | [#6](https://github.com/ymjoo12/soma-calendar/pull/6) |
+| [@jang-namu](https://github.com/jang-namu) | 멘토링 일정 중복 시 마우스 오버 팝업 | [#10](https://github.com/ymjoo12/soma-calendar/pull/10) |
