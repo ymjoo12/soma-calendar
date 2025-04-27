@@ -48,7 +48,8 @@ async function generateCalendarElement() {
                 <div id="npeople" style="font-size: smaller;">인원수 로딩중..</div>
               </a>
               <div style="display: flex; gap: 6px; font-weight: bold;">
-                <button class="export-btn" data-id="${ev.url}" style="flex: 5;" title="Export (ICS로 내보내기)">📅 내보내기</button>
+                <button class="export-btn" data-id="${ev.url}" style="flex: 3;" title="Export (ICS로 내보내기)">💾 ICS</button>
+                <button class="gcal-btn" data-id="${ev.url}" style="flex: 3; background-color: #4285F4;" title="Add to Google Calendar">📅 구글</button>
                 <button class="cancel-btn ${isAlreadyPassed ? "already" : ""}" data-id="${ev.url}" style="flex: 1;" title="Cancel (접수 취소)">취소</button>
               </div>
             </div>
@@ -72,7 +73,32 @@ async function main() {
   );
   let newElement = await generateCalendarElement();
   target.after(newElement);
+}
 
+// 구글 캘린더 이벤트 URL 생성 함수
+function generateGoogleCalendarURL(lecture) {
+  // URL 인코딩 함수
+  const encode = (str) => encodeURIComponent(str).replace(/%20/g, '+');
+  
+  // 구글 캘린더 기본 URL
+  const baseUrl = 'https://calendar.google.com/calendar/render?action=TEMPLATE';
+  
+  // 제목 추가
+  const title = `&text=${encode(lecture.title)}`;
+  
+  // 시작 및 종료 시간 추가 (ISO 형식으로 변환)
+  const startTime = lecture.startAt.toISOString().replace(/-|:|\.\d+/g, '');
+  const endTime = lecture.endAt.toISOString().replace(/-|:|\.\d+/g, '');
+  const dates = `&dates=${startTime}/${endTime}`;
+  
+  // 위치 추가
+  const location = lecture.loc ? `&location=${encode(lecture.loc)}` : '';
+  
+  // 설명 추가 (멘토 정보와 URL 포함)
+  const description = `&details=${encode(`멘토: ${lecture.author}\\n${lecture.url}`)}`;
+  
+  // 완성된 URL 반환
+  return `${baseUrl}${title}${dates}${location}${description}`;
 }
 
 async function updateCalendarElement() {
@@ -95,17 +121,28 @@ async function updateCalendarElement() {
     if (!lecture.isApproved) {
       npeopleElem.style.color = "red";
     }
+    
+    // ICS 내보내기 버튼 이벤트 리스너
     let exportBtn = ev.querySelector(".export-btn");
     exportBtn.addEventListener("click", (e) => {
       const icsContent = generateICS(lecture);
       const blob = new Blob([icsContent], { type: "text/calendar" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      link.download = `${ev.title.replace(/\s+/g, "_")}.ics`;
+      link.download = `${lecture.title.replace(/\s+/g, "_")}.ics`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     });
+    
+    // 구글 캘린더 버튼 이벤트 리스너
+    let gcalBtn = ev.querySelector(".gcal-btn");
+    gcalBtn.addEventListener("click", (e) => {
+      const googleCalendarURL = generateGoogleCalendarURL(lecture);
+      window.open(googleCalendarURL, '_blank');
+    });
+    
+    // 취소 버튼 이벤트 리스너
     let cancelBtn = ev.querySelector(".cancel-btn");
     cancelBtn.addEventListener("click", (e) => {
       if (lecture.startAt < new Date()) {

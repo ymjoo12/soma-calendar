@@ -91,14 +91,27 @@
   position: relative;
 }
 
-.export-btn {
+.export-btn, .gcal-btn {
   margin-top: 8px;
-  background-color: #114c9d; 
-  color:white; 
+  color: white; 
   border-radius: 4px; 
   padding: 4px; 
-  width: 100%;
+  border: none;
+  cursor: pointer;
   white-space: nowrap;
+  font-size: 0.9em;
+}
+
+.export-btn {
+  background-color: #114c9d;
+}
+
+.gcal-btn {
+  background-color: #4285F4;
+}
+
+.export-btn:hover, .gcal-btn:hover {
+  opacity: 0.85;
 }
 
 .cancel-btn {
@@ -106,7 +119,7 @@
   color: #666;
   border-radius: 4px; 
   padding: 4px; 
-  width: 100%;
+  cursor: pointer;
   white-space: nowrap;
 }
 
