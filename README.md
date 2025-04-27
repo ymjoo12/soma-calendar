@@ -10,7 +10,8 @@
 - 접수한 내역을 날짜별로 제목, 멘토명, 시간, 장소, 인원수, 개설 확정 여부 순으로 표시합니다.
 - 시간이 겹치는 내역은 **붉은색 배경**으로 표시되어 한눈에 확인할 수 있습니다.
 - 접수 내역을 클릭하면 해당 페이지로 이동합니다.
-- 접수 내역을 ICS 파일로 다운로드할 수 있습니다. (캘린더 추가 가능)
+- 접수 내역을 **ICS 파일**로 다운로드할 수 있습니다. (외부 캘린더 추가 가능)
+- 접수 내역을 **구글 캘린더**에 추가할 수 있습니다. (구글 로그인 필요)
 - 접수 내역을 캘린더에서 취소할 수 있습니다.
 
 2. **멘토링/특강 목록 페이지**
@@ -73,3 +74,4 @@ git clone https://github.com/ymjoo12/soma-calendar.git
 | [@SioJeong](https://github.com/SioJeong) | UI 개선 | [#5](https://github.com/ymjoo12/soma-calendar/pull/5) |
 | [@3ae3ae](https://github.com/3ae3ae) | Firefox 지원 | [#6](https://github.com/ymjoo12/soma-calendar/pull/6) |
 | [@jang-namu](https://github.com/jang-namu) | 멘토링 일정 중복 시 마우스 오버 팝업 | [#10](https://github.com/ymjoo12/soma-calendar/pull/10) |
+| [@qyinm](https://github.com/qyinm) | 구글 캘린더 추가 기능 | [#22](https://github.com/ymjoo12/soma-calendar/pull/22) |

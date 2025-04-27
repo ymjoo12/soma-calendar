@@ -12,7 +12,7 @@
 
 .calendar-cell {
   padding: 6px;
-  background: #f9f9f9; 
+  background: white; 
 }
 
 .calendar-date {
@@ -22,7 +22,7 @@
 }
 
 .today-bg {
-  background: #e0f0ff;
+  background: #f1f8ff;
 }
 
 .today-text {
@@ -32,14 +32,14 @@
 
 .calendar-lecture {
   font-size: 0.8em;
-  background: #ddd;
+  background: #f3f3f3;
   padding: 8px;
   border-radius: 4px;
   margin-top: 6px;
 }
 
 .conflict {
-  background: #dd000055;
+  background: #ffdddd;
 }
 
 .text-title {
@@ -103,7 +103,7 @@
 
 .export-btn, .gcal-btn, .cancel-btn {
   flex: 1;
-  background-color: #00000022;
+  background-color: #00000011;
   color: #222;
   font-size: 0.9em;
   font-weight: bold;
@@ -113,7 +113,7 @@
   cursor: pointer;
   transition: background-color 0.2s ease, color 0.2s ease;
   border-right: 1px solid;
-  border-color: #ddd;
+  border-color: #222;
   white-space: nowrap;
 }
 
@@ -129,7 +129,7 @@
 }
 
 .cancel-btn:hover {
-  background-color: red;
+  background-color: #ff4444;
   color: white;
 }
 
