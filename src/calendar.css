@@ -1,4 +1,5 @@
 #history-calendar {
+  overflow-x: auto;
   border: 1px solid #ddd;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -11,16 +12,17 @@
 
 .calendar-cell {
   padding: 6px;
-  background: #f9f9f9; 
+  background: white; 
 }
 
 .calendar-date {
   font-weight: bold;
   margin-bottom: 4px;
+  white-space: nowrap;
 }
 
 .today-bg {
-  background: #e0f0ff;
+  background: #f1f8ff;
 }
 
 .today-text {
@@ -30,17 +32,18 @@
 
 .calendar-lecture {
   font-size: 0.8em;
-  background: #ddd;
+  background: #f3f3f3;
   padding: 8px;
   border-radius: 4px;
   margin-top: 6px;
 }
 
 .conflict {
-  background: #dd000055;
+  background: #ffdddd;
 }
 
-.ellipsis-2-lines {
+.text-title {
+  color: #114C9D;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -91,23 +94,43 @@
   position: relative;
 }
 
-.export-btn {
-  margin-top: 8px;
-  background-color: #114c9d; 
-  color:white; 
-  border-radius: 4px; 
-  padding: 4px; 
-  width: 100%;
+.button-group {
+  display: flex;
+  margin-top: 4px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.export-btn, .gcal-btn, .cancel-btn {
+  flex: 1;
+  background-color: #00000011;
+  color: #222;
+  font-size: 0.9em;
+  font-weight: bold;
+  padding: 4px 2px;
+  text-align: center;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  border-right: 1px solid;
+  border-color: #222;
   white-space: nowrap;
 }
 
 .cancel-btn {
-  margin-top: 8px; 
-  color: #666;
-  border-radius: 4px; 
-  padding: 4px; 
-  width: 100%;
-  white-space: nowrap;
+  border-right: none;
+}
+
+.export-btn:hover,
+.gcal-btn:hover {
+  background-color: #114C9D;
+  color: white;
+  border-right: none;
+}
+
+.cancel-btn:hover {
+  background-color: #ff4444;
+  color: white;
 }
 
 .already {
