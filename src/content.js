@@ -37,7 +37,7 @@ async function generateCalendarElement() {
               <a href="${
                 ev.url
               }" style="margin-bottom: 4px; font-size: larger; font-weight: bold;">
-                <div id="title" class="ellipsis-2-lines" style="color: #114C9D;">${
+                <div id="title" class="text-title">${
                   ev.title
                 }</div>
                 <div id="author" style="font-size: small; margin-bottom: 4px;">${
@@ -47,10 +47,10 @@ async function generateCalendarElement() {
                 <div id="loc" style="font-size: smaller;">장소 로딩중..</div>
                 <div id="npeople" style="font-size: smaller;">인원수 로딩중..</div>
               </a>
-              <div style="display: flex; gap: 6px; font-weight: bold;">
-                <button class="export-btn" data-id="${ev.url}" style="flex: 3;" title="Export (ICS로 내보내기)">💾 ICS</button>
-                <button class="gcal-btn" data-id="${ev.url}" style="flex: 3; background-color: #4285F4;" title="Add to Google Calendar">📅 구글</button>
-                <button class="cancel-btn ${isAlreadyPassed ? "already" : ""}" data-id="${ev.url}" style="flex: 1;" title="Cancel (접수 취소)">취소</button>
+              <div class="button-group">
+                <button class="export-btn" data-id="${ev.url}" style="flex: 1;" title="Export (ICS로 내보내기)">💾 ICS</button>
+                <button class="gcal-btn" data-id="${ev.url}" style="flex: 1;" title="Add to Google Calendar">📅 구글</button>
+                <button class="cancel-btn ${isAlreadyPassed ? "already" : ""}" data-id="${ev.url}" style="flex: 1;" title="Cancel (접수 취소)">❌ 취소</button>
               </div>
             </div>
           `;
@@ -95,7 +95,7 @@ function generateGoogleCalendarURL(lecture) {
   const location = lecture.loc ? `&location=${encode(lecture.loc)}` : '';
   
   // 설명 추가 (멘토 정보와 URL 포함)
-  const description = `&details=${encode(`멘토: ${lecture.author}\\n${lecture.url}`)}`;
+  const description = `&details=${encode(`멘토: ${lecture.author}\n${lecture.url}`)}`;
   
   // 완성된 URL 반환
   return `${baseUrl}${title}${dates}${location}${description}`;
