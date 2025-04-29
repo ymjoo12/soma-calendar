@@ -36,7 +36,7 @@ async function generateCalendarElement() {
             }" title="${ev.title}">
               <a href="${
                 ev.url
-              }" style="margin-bottom: 4px; font-size: larger; font-weight: bold;">
+              }" class="info-group">
                 <div id="title" class="text-title">${
                   ev.title
                 }</div>
