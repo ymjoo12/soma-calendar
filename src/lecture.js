@@ -99,3 +99,59 @@ getAllLectures().then((lectures) => {
         }
     });
 });
+
+const targetElement = document.querySelector('#listFrm > div.top-mentoring > ul');
+
+const newItem = document.createElement('li');
+newItem.className = 'MRC000';
+
+const check = document.createElement('input');
+check.type = 'checkbox';
+check.textContent = '팀 멘토링 제외';
+newItem.appendChild(check);
+
+const text = document.createElement('span');
+text.className = 'nomentoring';
+text.textContent = '팀 멘토링 제외';
+
+
+check.addEventListener('change', (e) => {
+    iterateDatepickerItems(e.target.checked);
+});
+
+newItem.appendChild(text);
+
+if (targetElement) {
+    targetElement.appendChild(newItem);
+}
+
+// 달력에 있는 모든 일정들 확인 후 '팀 멘토링'과 관련된 일정들을 제외한다.
+function iterateDatepickerItems(flag) {
+    console.log(flag);
+    const rows = document.querySelectorAll('#mypageListItem > div > div.datepicker-days > table > tbody > tr');
+    const pattern = /^(?=.*멘토링)(?:(.*팀.*멘토링)|\[.*?\].*멘토링|.+멘토.+멘토링|.+멘토링\s*\(.*\)|.+팀\s*매칭.*|.+자유멘토링[-<>]?.*)$/i;
+    rows.forEach( row => {
+        const cells = row.querySelectorAll('td');
+
+        cells.forEach(cell => {
+            const list = cell.querySelector('ul');
+            const newlist = [];
+            if (list) {
+                const items = list.querySelectorAll('li');
+                items.forEach(item =>{
+                    const anchor = item.querySelector('a');
+                    final_flag = pattern.test(anchor.title);
+                    // 체크박스 이벤트와 팀 멘토링에 해당하는 경우
+                    if (flag && final_flag){
+                        item.style.display = "None";
+                    }
+                    // 체크박스 이벤트가 아닌 경우
+                    else if(!flag){
+                        item.style.display = "block";
+                    }
+                });
+            }
+            
+        });
+    });
+}

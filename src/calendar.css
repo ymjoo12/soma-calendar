@@ -1,3 +1,6 @@
+/* Refactored CSS for better readability and maintainability */
+
+/* Calendar styling */
 #history-calendar {
   overflow-x: auto;
   border: 1px solid #ddd;
@@ -30,6 +33,7 @@
   white-space: nowrap;
 }
 
+/* Lecture styling */
 .calendar-lecture {
   font-size: 0.8em;
   background: #f3f3f3;
@@ -42,6 +46,7 @@
   background: #ffdddd;
 }
 
+/* Text title styling */
 .text-title {
   color: #114C9D;
   display: -webkit-box;
@@ -57,6 +62,7 @@
   height: calc(var(--lh) * 2);
 }
 
+/* Popup styling */
 .overlap-popup {
   position: fixed; /* absolute에서 fixed로 변경하여 스크롤 시에도 마우스 위치에 유지 */
   background-color: white;
@@ -94,6 +100,7 @@
   position: relative;
 }
 
+/* Button group styling */
 .button-group {
   display: flex;
   margin-top: 4px;
@@ -136,3 +143,15 @@
 .already {
   cursor: not-allowed;
 }
+
+
+
+/* 체크 박스용 CSS */
+.mypageCalendar__category li.MRC000 input{
+  position:absolute;
+  clip: rect(0px 15px 15px 0px);
+  width: 15px;
+  margin:0px;
+  height: 15px;
+}
+
