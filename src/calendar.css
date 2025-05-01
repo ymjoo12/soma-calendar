@@ -35,6 +35,12 @@
   background: #f0f0f0;
   border-radius: 6px;
   margin-top: 6px;
+  box-shadow: 0px 0px 3px rgba(0, 0, 0, 0.2);
+  transition: box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.calendar-lecture:hover {
+  box-shadow: 0px 0px 5px rgba(0, 0, 0, 0.4);
 }
 
 .conflict {
@@ -98,6 +104,7 @@
   padding: 8px;
   font-size: larger; 
   font-weight: bold;
+  width: 100%;
 }
 
 .button-group {
