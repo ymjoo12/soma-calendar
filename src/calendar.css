@@ -1,3 +1,6 @@
+/* Refactored CSS for better readability and maintainability */
+
+/* Calendar styling */
 #history-calendar {
   overflow-x: auto;
   border: 1px solid #ddd;
@@ -30,18 +33,25 @@
   white-space: nowrap;
 }
 
+/* Lecture styling */
 .calendar-lecture {
   font-size: 0.8em;
-  background: #f3f3f3;
-  padding: 8px;
+  background: #f0f0f0;
   border-radius: 6px;
   margin-top: 6px;
+  box-shadow: 0px 0px 3px rgba(0, 0, 0, 0.2);
+  transition: box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.calendar-lecture:hover {
+  box-shadow: 0px 0px 5px rgba(0, 0, 0, 0.4);
 }
 
 .conflict {
-  background: #ffdddd;
+  background: #ffe8e8;
 }
 
+/* Text title styling */
 .text-title {
   color: #114C9D;
   display: -webkit-box;
@@ -57,6 +67,7 @@
   height: calc(var(--lh) * 2);
 }
 
+/* Popup styling */
 .overlap-popup {
   position: fixed; /* absolute에서 fixed로 변경하여 스크롤 시에도 마우스 위치에 유지 */
   background-color: white;
@@ -94,10 +105,17 @@
   position: relative;
 }
 
+.info-group {
+  display: inline-block;
+  padding: 8px;
+  font-size: larger; 
+  font-weight: bold;
+  width: 100%;
+}
+
 .button-group {
   display: flex;
-  margin-top: 4px;
-  border-radius: 4px;
+  border-radius: 0 0 6px 6px;
   overflow: hidden;
 }
 
@@ -107,32 +125,39 @@
   color: #222;
   font-size: 0.9em;
   font-weight: bold;
-  padding: 4px 2px;
+  padding: 6px 2px;
   text-align: center;
   border: none;
   cursor: pointer;
   transition: background-color 0.2s ease, color 0.2s ease;
-  border-right: 1px solid;
+  border-right: 0.5px solid;
   border-color: #222;
   white-space: nowrap;
 }
 
 .cancel-btn {
   border-right: none;
+  color: #ff4444;
 }
 
 .export-btn:hover,
 .gcal-btn:hover {
-  background-color: #114C9D;
+  background-color: #114C9Dcc;
   color: white;
   border-right: none;
 }
 
 .cancel-btn:hover {
-  background-color: #ff4444;
+  background-color: #ff0000cc;
   color: white;
 }
 
 .already {
   cursor: not-allowed;
 }
+
+.already:hover {
+  background-color: #00000011;
+  color: #ff4444;
+}
+
