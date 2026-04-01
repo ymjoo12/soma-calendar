@@ -161,13 +161,3 @@
   color: #ff4444;
 }
 
-/* 체크 박스용 CSS */
-.mypageCalendar__category li.MRC000 input{
-  position:absolute;
-  clip: rect(0px 15px 15px 0px);
-  width: 15px;
-  margin:0px;
-  height: 15px;
-}
-
-
