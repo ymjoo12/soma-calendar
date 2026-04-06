@@ -8,25 +8,25 @@
   "description": "멘토링/특강 게시판에 시간표를 띄워줍니다.",
   "permissions": ["activeTab", "scripting"],
   "host_permissions": [
-    "https://swmaestro.org/*",
-    "https://www.swmaestro.org/*"
+    "https://swmaestro.ai/*",
+    "https://www.swmaestro.ai/*"
   ],
   "action": {
     "default_popup": "popup.html"
   },
   "content_scripts": [
     {
-      "matches": ["https://*.swmaestro.org/sw/mypage/userAnswer/history.do*", "https://swmaestro.org/sw/mypage/userAnswer/history.do*"],
+      "matches": ["https://*.swmaestro.ai/sw/mypage/userAnswer/history.do*", "https://swmaestro.ai/sw/mypage/userAnswer/history.do*"],
       "js": ["src/utils.js", "src/content.js"],
       "css": ["src/calendar.css"]
     },
     {
-      "matches":["https://*.swmaestro.org/sw/mypage/mentoLec/list.do?**", "https://swmaestro.org/sw/mypage/mentoLec/list.do?*"],
+      "matches":["https://*.swmaestro.ai/sw/mypage/mentoLec/list.do?**", "https://swmaestro.ai/sw/mypage/mentoLec/list.do?*"],
       "js": ["src/utils.js", "src/lecture.js"],
       "css": ["src/calendar.css"]
     },
     {
-      "matches":["https://*.swmaestro.org/sw/mypage/mentoLec/view.do*", "https://swmaestro.org/sw/mypage/mentoLec/view.do*"],
+      "matches":["https://*.swmaestro.ai/sw/mypage/mentoLec/view.do*", "https://swmaestro.ai/sw/mypage/mentoLec/view.do*"],
       "js": ["src/utils.js", "src/lecture-item.js"]
     }
   ],
