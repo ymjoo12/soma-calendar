@@ -35,6 +35,7 @@
   ],
   "browser_specific_settings": {
     "gecko": {
+      "id": "soma-calendar@ymjoo12.github.io",
       "strict_min_version": "109.0"
     }
   }
