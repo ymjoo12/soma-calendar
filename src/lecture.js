@@ -65,9 +65,7 @@ getAllLectures().then((lectures) => {
                 });
                 
                 // 팝업 표시
-                const parser = new DOMParser();
-                const parsed = parser.parseFromString(popupContent, 'text/html');
-                popupElement.replaceChildren(...parsed.body.childNodes);
+                popupElement.innerHTML = popupContent;
                 popupElement.style.display = 'block';
                 
                 // 마우스 커서 위치에 따라 팝업 위치 설정

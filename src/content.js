@@ -62,11 +62,7 @@ async function generateCalendarElement() {
 
   const wrapper = document.createElement("div");
   wrapper.id = "history-calendar";
-  const parser = new DOMParser();
-  const parsed = parser.parseFromString(days.join(""), 'text/html');
-  for (const child of [...parsed.body.childNodes]) {
-    wrapper.appendChild(child);
-  }
+  wrapper.innerHTML = days.join("");
 
   return wrapper;
 }
