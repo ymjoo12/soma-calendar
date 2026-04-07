@@ -15,8 +15,8 @@ function normalizeTimeStr(time) {
   }
   
 function extractLectureListFromHTML(html) {
-  const container = document.createElement('div');
-  container.innerHTML = html;
+  const parser = new DOMParser();
+  const container = parser.parseFromString(html, 'text/html');
 
   const rows = container.querySelectorAll("#contentsList > div > div > div.boardlist > div.tbl-ovx > table > tbody > tr");
   const lectures = [];
@@ -53,8 +53,8 @@ function extractLectureListFromHTML(html) {
 }
 
 function extractLectureDetailFromHTML(html) {
-  const container = document.createElement("div");
-  container.innerHTML = html;
+  const parser = new DOMParser();
+  const container = parser.parseFromString(html, 'text/html');
   const cancelBtn = container.querySelector("#contentsList > div > div > div.btn_w-st1.mt50 > button.btn-st1.bg-black_r");
   return {
     loc: container
@@ -70,8 +70,8 @@ function extractLectureDetailFromHTML(html) {
 async function getTotalPages(baseUrl){
   const res = await fetch(baseUrl, { credentials: "include" });
   const html = await res.text();
-  const container = document.createElement("div")
-  container.innerHTML = html
+  const parser = new DOMParser();
+  const container = parser.parseFromString(html, 'text/html');
   const totalStr = container.querySelector(".bbs-total strong.color-blue")?.nextSibling?.textContent
   const total = parseInt(totalStr?.replace(":", "")?.trim()) || 0;
   const totalPages = Math.ceil(total / 10);
