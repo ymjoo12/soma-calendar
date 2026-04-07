@@ -9,7 +9,7 @@
     "128": "icons/icon128.png"
   },
   "description": "멘토링/특강 게시판에 시간표를 띄워줍니다.",
-  "permissions": ["activeTab", "scripting"],
+  "permissions": ["activeTab"],
   "host_permissions": [
     "https://swmaestro.ai/*",
     "https://www.swmaestro.ai/*"
