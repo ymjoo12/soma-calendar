@@ -56,13 +56,21 @@ function extractLectureDetailFromHTML(html) {
   const container = document.createElement("div");
   container.innerHTML = html;
   const cancelBtn = container.querySelector("#contentsList > div > div > div.btn_w-st1.mt50 > button.btn-st1.bg-black_r");
+  const getTopValue = (label) => {
+    const group = [...container.querySelectorAll("div.top .group")]
+      .find((item) => item.querySelector(".t")?.innerText.trim() === label);
+    return group?.querySelector(".c")?.innerText.replace(/\s+/g, " ").trim() || null;
+  };
+  const npeople = getTopValue("모집인원");
+  const appliedSummary = container.querySelector(".total-normal.mt50")?.innerText.replace(/\s+/g, " ").trim() || "";
+  const appliedCount = appliedSummary.match(/\[(\d+)\s*명\]/)?.[1] || null;
+  const totalCount = npeople?.match(/(\d+)/)?.[1] || null;
   return {
-    loc: container
-      .querySelector("div.top > div:nth-child(4) > div:nth-child(1) > div.c")
-      .innerText.trim(),
-    npeople: container
-      .querySelector("div.top > div:nth-child(4) > div:nth-child(2) > div.c")
-      .innerText.trim(),
+    loc: getTopValue("장소"),
+    npeople,
+    timeStr: getTopValue("강의날짜"),
+    appliedCount,
+    totalCount,
     applyId: cancelBtn ? cancelBtn.getAttribute('onclick').split("'")[3] : null,
   };
 }
