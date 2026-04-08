@@ -105,6 +105,44 @@
   position: relative;
 }
 
+/* Calendar popup detail styling */
+.calendar-pop-extra {
+  margin-top: 10px;
+  margin-bottom: 0;
+  padding-top: 10px;
+  color: #444;
+  font-size: 12px;
+  line-height: 1.5;
+  list-style: none;
+}
+
+.calendar-pop-extra__row {
+  display: flex;
+  gap: 6px;
+}
+
+.calendar-pop-extra__row + .calendar-pop-extra__row {
+  margin-top: 4px;
+}
+
+.calendar-pop-extra__label {
+  flex-shrink: 0;
+  color: #666;
+  font-weight: bold;
+}
+
+.calendar-pop-extra__value {
+  word-break: break-word;
+}
+
+.calendar-pop-extra-loading {
+  color: #666;
+}
+
+.calendar-pop-extra-error {
+  color: #d93025;
+}
+
 .info-group {
   display: inline-block;
   padding: 8px;
@@ -160,4 +198,3 @@
   background-color: #00000011;
   color: #ff4444;
 }
-
