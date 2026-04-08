@@ -66,7 +66,7 @@ jobs:
           name: extension-${{ needs.build.outputs.version || github.ref_name }}
 
       - name: Publish to Firefox Add-ons
-        uses: browser-actions/release-firefox-addon@v0.2.3
+        uses: browser-actions/release-firefox-addon@v0.2.1
         with:
           addon-id: ${{ secrets.FIREFOX_ADDON_ID }}
           addon-path: extension.zip
