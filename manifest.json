@@ -1,12 +1,15 @@
 {
   "manifest_version": 3,
   "name": "소마 멘토링 시간표",
-  "version": "26.4.7.0",
+  "version": "26.4.8.0",
   "icons": {
-    "128": "128.png"
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   },
   "description": "멘토링/특강 게시판에 시간표를 띄워줍니다.",
-  "permissions": ["activeTab", "scripting"],
+  "permissions": ["activeTab"],
   "host_permissions": [
     "https://swmaestro.ai/*",
     "https://www.swmaestro.ai/*"
@@ -32,7 +35,11 @@
   ],
   "browser_specific_settings": {
     "gecko": {
-      "strict_min_version": "109.0"
+      "id": "soma-calendar@ymjoo12.github.io",
+      "strict_min_version": "109.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
     }
   }
 }

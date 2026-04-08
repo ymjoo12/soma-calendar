@@ -2,6 +2,8 @@
 
 연수생이 접수한 멘토링/특강 내역을 접수 내역 페이지에서 시간표 형태로 확인할 수 있는 브라우저 확장 프로그램입니다.
 
+![소마 멘토링 시간표 스크린샷](assets/screenshot-calendar.png)
+
 
 ## 📖 주요 기능
 
@@ -76,3 +78,4 @@ git clone https://github.com/ymjoo12/soma-calendar.git
 | [@jang-namu](https://github.com/jang-namu) | 멘토링 일정 중복 시 마우스 오버 팝업 | [#10](https://github.com/ymjoo12/soma-calendar/pull/10) |
 | [@qyinm](https://github.com/qyinm) | 구글 캘린더 추가 기능 | [#22](https://github.com/ymjoo12/soma-calendar/pull/22) |
 | [@softwareDefine](https://github.com/softwareDefine) | 도메인 변경 및 레이아웃 변경 반영 | [#27](https://github.com/ymjoo12/soma-calendar/pull/27), [#29](https://github.com/ymjoo12/soma-calendar/pull/29) |
+| [@lickelon](https://github.com/lickelon) | 멘토링/특강 달력 활동 정보 요약 보기 | [#30](https://github.com/ymjoo12/soma-calendar/pull/30) |

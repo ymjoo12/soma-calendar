@@ -1,0 +1,71 @@
+name: Publish Extension
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Build zip
+        run: |
+          zip -r extension.zip \
+            manifest.json \
+            popup.html \
+            popup.js \
+            icons/ \
+            src/ \
+            -x "*.DS_Store"
+
+      - name: Upload zip to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ steps.version.outputs.version }}" extension.zip --clobber
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-${{ steps.version.outputs.version }}
+          path: extension.zip
+
+  chrome:
+    needs: build
+    runs-on: ubuntu-latest
+    if: vars.CHROME_PUBLISH_ENABLED == 'true'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension-${{ needs.build.outputs.version || github.ref_name }}
+
+      - name: Publish to Chrome Web Store
+        uses: mnao305/chrome-extension-upload@v5.0.0
+        with:
+          file-path: extension.zip
+          extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
+          client-id: ${{ secrets.CHROME_CLIENT_ID }}
+          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+
+  firefox:
+    needs: build
+    runs-on: ubuntu-latest
+    if: vars.FIREFOX_PUBLISH_ENABLED == 'true'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension-${{ needs.build.outputs.version || github.ref_name }}
+
+      - name: Publish to Firefox Add-ons
+        uses: browser-actions/release-firefox-addon@v0.2.3
+        with:
+          addon-id: ${{ secrets.FIREFOX_ADDON_ID }}
+          addon-path: extension.zip
+          auth-api-issuer: ${{ secrets.FIREFOX_API_ISSUER }}
+          auth-api-secret: ${{ secrets.FIREFOX_API_SECRET }}
