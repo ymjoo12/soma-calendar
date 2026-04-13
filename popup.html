@@ -4,38 +4,245 @@
 <head>
   <meta charset="UTF-8">
   <title>소마 시간표</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --border: #d9e1ee;
+      --text: #142033;
+      --muted: #627188;
+      --accent: #1f6feb;
+      --accent-strong: #1249a7;
+      --soft: #edf4ff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      width: 340px;
+      background:
+        radial-gradient(circle at top right, rgba(31, 111, 235, 0.12), transparent 34%),
+        linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+      color: var(--text);
+      font-family: "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      font-size: 14px;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .popup-shell {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .hero {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 12px 30px rgba(20, 32, 51, 0.08);
+    }
+
+    .hero img {
+      width: 108px;
+      height: auto;
+    }
+
+    .hero-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .hero-copy {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .quick-link {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--panel);
+      font-weight: 700;
+    }
+
+    .quick-link span:last-child {
+      color: var(--accent);
+    }
+
+    .install-card {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px;
+      border: 1px solid #c9daf8;
+      border-radius: 18px;
+      background: linear-gradient(180deg, var(--soft) 0%, #ffffff 100%);
+    }
+
+    .card-eyebrow {
+      color: var(--accent-strong);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .card-title {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .card-copy {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .button-row a {
+      flex: 1;
+      min-width: 0;
+      text-align: center;
+    }
+
+    .button-primary,
+    .button-secondary,
+    .repo-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .button-primary {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+      color: #ffffff;
+      box-shadow: 0 10px 22px rgba(31, 111, 235, 0.24);
+    }
+
+    .button-secondary {
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.88);
+      color: var(--text);
+    }
+
+    .meta-card {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--panel);
+    }
+
+    .meta-title {
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .meta-subtitle,
+    #version-status {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .repo-link {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+    }
+  </style>
 </head>
 
-<body style="font-family: sans-serif; font-size: 14px;">
-  <a href="https://www.swmaestro.ai/sw/main/main.do" target="_blank">
-    <img src="https://www.swmaestro.ai/static/sw/img/common/logo.png" alt="logo"
-      style="width: 100px; height: auto; margin-bottom: 10px;" />
-  </a>
+<body>
+  <div class="popup-shell">
+    <section class="hero">
+      <a href="https://www.swmaestro.ai/sw/main/main.do" target="_blank" rel="noreferrer">
+        <img src="https://www.swmaestro.ai/static/sw/img/common/logo.png" alt="SW Maestro logo">
+      </a>
+      <h1 class="hero-title">소마 멘토링 시간표</h1>
+      <p class="hero-copy">
+        SW Maestro 멘토링·특강 페이지에 시간표와 겹침 경고, 캘린더 보조 기능을 추가합니다.
+      </p>
+    </section>
 
-  <div style="margin-bottom: 10px;">
-    <a href="https://www.swmaestro.ai/sw/mypage/userAnswer/history.do?menuNo=200047" target="_blank"
-      style="color: #333; font-weight: bold; display: flex; align-items: center;">
-      🗓️ 멘토링/특강 접수 내역 확인하기
+    <a
+      class="quick-link"
+      href="https://www.swmaestro.ai/sw/mypage/userAnswer/history.do?menuNo=200047"
+      target="_blank"
+      rel="noreferrer"
+    >
+      <span>멘토링/특강 접수 내역 열기</span>
+      <span>열기</span>
+    </a>
+
+    <section class="install-card">
+      <div class="card-eyebrow">Install</div>
+      <h2 class="card-title" id="store-title">배포 버전 설치</h2>
+      <p class="card-copy" id="store-copy">
+        현재 브라우저에 맞는 스토어 설치 페이지로 이동합니다.
+      </p>
+      <div class="button-row">
+        <a id="store-link" class="button-primary" href="#" target="_blank" rel="noreferrer">스토어로 이동</a>
+        <a
+          class="button-secondary"
+          href="https://github.com/ymjoo12/soma-calendar/releases/latest"
+          target="_blank"
+          rel="noreferrer"
+        >
+          개발 버전 ZIP
+        </a>
+      </div>
+    </section>
+
+    <section class="meta-card">
+      <div class="meta-title">버전 정보</div>
+      <div id="version-status">버전 확인 중...</div>
+      <div class="meta-subtitle">
+        개발 버전 ZIP 설치와 배포 버전 설치 방법은 README에서 각각 확인할 수 있습니다.
+      </div>
+    </section>
+
+    <a
+      class="repo-link"
+      href="https://github.com/ymjoo12/soma-calendar"
+      target="_blank"
+      rel="noreferrer"
+    >
+      GitHub 저장소 열기
     </a>
   </div>
-
-  <div style="margin-bottom: 10px; font-size: 12px; white-space: nowrap; display: flex; align-items: center; color: #666; font-weight: bold;">
-    소마 멘토링/특강 게시판에 시간표를 띄워주는 확장 프로그램입니다.</br>
-    버그/개선사항은 아래 GitHub을 통해 Issue/Pull Request를 남겨주세요.
-  </div>
-
-<div style="white-space: nowrap; display: flex; align-items: center; margin-bottom: 8px;">
-  <a href="https://github.com/ymjoo12/soma-calendar" target="_blank"
-    style="text-decoration: none; color: #333; font-weight: bold; display: flex; align-items: center; padding: 5px; border: 1px solid #ccc; width: 100%;">
-    <span><img src="https://github.com/favicon.ico" style="width: 25px; height: auto; margin-right: 6px;" /></span>
-    <span style="font-size: 12px; display: flex; flex-direction: column;">
-      <span>🛠️ SWM 16기 주영민 (ymjoo12)</span>
-      <span id="version-status" style="color: gray;">버전 확인 중...</span>
-    </span>
-  </a>
-</div>
-
-
   <script src="popup.js"></script>
 </body>
 
