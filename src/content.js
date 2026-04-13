@@ -155,7 +155,7 @@ async function updateCalendarElement() {
     locElem.innerText = loc;
     let npeopleElem = ev.querySelector('[data-role="npeople"]');
     npeopleElem.innerText = npeople + (lecture.isApproved ? " [개설 확정]" : " [미승인]");
-    if (!lecture.isApproved) {
+    if (!lecture.isApproved && !ev.classList.contains("ended")) {  // 가독성을 위해 이미 지나간 강의는 미승인 글자색 강조 X
       npeopleElem.style.color = "red";
     }
 
