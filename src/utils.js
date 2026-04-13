@@ -17,6 +17,10 @@ function normalizeTimeStr(time) {
     const [h, m, s] = time.split(':');
     return `${h.padStart(2, '0')}:${m.padStart(2, '0')}:${s.padStart(2, '0')}`;
   }
+
+function getSwPathPrefix() {
+  return location.pathname.match(/^(.*)\/sw(?:\/|$)/)?.[1] || "";
+}
   
 function extractLectureListFromHTML(html) {
   const container = parseHtmlDocument(html);
@@ -88,7 +92,7 @@ async function getTotalPages(baseUrl){
 async function getAllLectures() {
   const lectures = [];
 
-  const path = `${location.pathname.split("/sw/")[0]}/sw/mypage/userAnswer/history.do?menuNo=200047`;
+  const path = `${getSwPathPrefix()}/sw/mypage/userAnswer/history.do?menuNo=200047`;
   const totalPages = await getTotalPages(path)
 
   for (let page = 1; page <= totalPages; page++) {
@@ -154,7 +158,7 @@ function getLectureId(url){
 
 function cancelApply(applySn, qustnrSn) {
   if (confirm("선택된 항목의 접수를 취소 하시겠습니까?")) {
-    fetch(`${location.pathname.split("/sw/")[0]}/sw/mypage/mentoLec/applyCancel.json`, {
+    fetch(`${getSwPathPrefix()}/sw/mypage/mentoLec/applyCancel.json`, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded"
