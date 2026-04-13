@@ -52,7 +52,12 @@
 }
 
 /* 가독성 향상을 위해 지나간 강의 카드는 회색으로 표시 */
-.ended {
+.ended,
+.ended .text-title,
+.ended .info-group,
+.ended .export-btn,
+.ended .gcal-btn,
+.ended .cancel-btn {
   background: #f6f6f6;
   color: #777;
   opacity: 0.6;
