@@ -11,7 +11,8 @@
 
 1. **접수 내역 페이지**
 
-- 접수한 내역을 날짜별로 제목, 멘토명, 시간, 장소, 인원수, 개설 확정 여부 순으로 표시합니다.
+- 접수 내역을 달력 형태로 표시합니다. (금주 포함 4주, 오늘 날짜 하이라이팅, 지난 항목 회색 표시)
+- 접수 내역을 날짜별로 제목, 멘토명, 시간, 장소, 인원수, 개설 확정 여부 순으로 표시합니다.
 - 시간이 겹치는 내역은 **붉은색 배경**으로 표시되어 한눈에 확인할 수 있습니다.
 - 접수 내역을 클릭하면 해당 페이지로 이동합니다.
 - 접수 내역을 **ICS 파일**로 다운로드할 수 있습니다. (외부 캘린더 추가 가능)
@@ -83,3 +84,4 @@ git clone https://github.com/ymjoo12/soma-calendar.git
 | [@qyinm](https://github.com/qyinm) | 구글 캘린더 추가 기능 | [#22](https://github.com/ymjoo12/soma-calendar/pull/22) |
 | [@softwareDefine](https://github.com/softwareDefine) | 도메인 변경 및 레이아웃 변경 반영 | [#27](https://github.com/ymjoo12/soma-calendar/pull/27), [#29](https://github.com/ymjoo12/soma-calendar/pull/29) |
 | [@lickelon](https://github.com/lickelon) | 멘토링/특강 달력 활동 정보 요약 보기 | [#30](https://github.com/ymjoo12/soma-calendar/pull/30) |
+| [@doorcs](https://github.com/doorcs) | 지나간 강의 회색 표시 및 코드 포매팅 적용 | [#32](https://github.com/ymjoo12/soma-calendar/pull/32) |

@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
   "name": "소마 멘토링 시간표",
-  "version": "26.4.13.0",
+  "version": "26.4.14.0",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "description": "멘토링/특강 게시판에 시간표를 띄워줍니다.",
+  "description": "연수생이 접수한 멘토링/특강 내역을 접수 내역 페이지에서 시간표 형태로 확인할 수 있는 브라우저 확장 프로그램입니다.",
   "action": {
     "default_popup": "popup.html"
   },
@@ -16,15 +16,19 @@
     {
       "matches": [
         "https://*.swmaestro.ai/sw/mypage/userAnswer/history.do*",
-        "https://swmaestro.ai/sw/mypage/userAnswer/history.do*"
+        "https://swmaestro.ai/sw/mypage/userAnswer/history.do*",
+        "https://*.swmaestro.ai/busan/sw/mypage/userAnswer/history.do*",
+        "https://swmaestro.ai/busan/sw/mypage/userAnswer/history.do*"
       ],
       "js": ["src/utils.js", "src/content.js"],
       "css": ["src/calendar.css"]
     },
     {
       "matches": [
-        "https://*.swmaestro.ai/sw/mypage/mentoLec/list.do?**",
-        "https://swmaestro.ai/sw/mypage/mentoLec/list.do?*"
+        "https://*.swmaestro.ai/sw/mypage/mentoLec/list.do?*",
+        "https://swmaestro.ai/sw/mypage/mentoLec/list.do?*",
+        "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*",
+        "https://swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*"
       ],
       "js": ["src/utils.js", "src/lecture.js"],
       "css": ["src/calendar.css"]
@@ -32,7 +36,9 @@
     {
       "matches": [
         "https://*.swmaestro.ai/sw/mypage/mentoLec/view.do*",
-        "https://swmaestro.ai/sw/mypage/mentoLec/view.do*"
+        "https://swmaestro.ai/sw/mypage/mentoLec/view.do*",
+        "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/view.do*",
+        "https://swmaestro.ai/busan/sw/mypage/mentoLec/view.do*"
       ],
       "js": ["src/utils.js", "src/lecture-item.js"]
     }
