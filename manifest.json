@@ -14,17 +14,32 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://*.swmaestro.ai/sw/mypage/userAnswer/history.do*", "https://swmaestro.ai/sw/mypage/userAnswer/history.do*", "https://*.swmaestro.ai/busan/sw/mypage/userAnswer/history.do*", "https://swmaestro.ai/busan/sw/mypage/userAnswer/history.do*"],
+      "matches": [
+        "https://*.swmaestro.ai/sw/mypage/userAnswer/history.do*",
+        "https://swmaestro.ai/sw/mypage/userAnswer/history.do*",
+        "https://*.swmaestro.ai/busan/sw/mypage/userAnswer/history.do*",
+        "https://swmaestro.ai/busan/sw/mypage/userAnswer/history.do*"
+      ],
       "js": ["src/utils.js", "src/content.js"],
       "css": ["src/calendar.css"]
     },
     {
-      "matches":["https://*.swmaestro.ai/sw/mypage/mentoLec/list.do?*", "https://swmaestro.ai/sw/mypage/mentoLec/list.do?*", "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*", "https://swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*"],
+      "matches": [
+        "https://*.swmaestro.ai/sw/mypage/mentoLec/list.do?*",
+        "https://swmaestro.ai/sw/mypage/mentoLec/list.do?*",
+        "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*",
+        "https://swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*"
+      ],
       "js": ["src/utils.js", "src/lecture.js"],
       "css": ["src/calendar.css"]
     },
     {
-      "matches":["https://*.swmaestro.ai/sw/mypage/mentoLec/view.do*", "https://swmaestro.ai/sw/mypage/mentoLec/view.do*", "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/view.do*", "https://swmaestro.ai/busan/sw/mypage/mentoLec/view.do*"],
+      "matches": [
+        "https://*.swmaestro.ai/sw/mypage/mentoLec/view.do*",
+        "https://swmaestro.ai/sw/mypage/mentoLec/view.do*",
+        "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/view.do*",
+        "https://swmaestro.ai/busan/sw/mypage/mentoLec/view.do*"
+      ],
       "js": ["src/utils.js", "src/lecture-item.js"]
     }
   ],

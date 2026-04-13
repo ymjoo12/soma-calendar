@@ -10,9 +10,15 @@ function createCalendarButton(className, label, title, url, extraClass = "") {
   return button;
 }
 
-function createCalendarLectureElement(ev, isConflict, isAlreadyPassed) {
+function createCalendarLectureElement(
+  ev,
+  isConflict,
+  isAlreadyPassed,
+  isEnded,
+) {
   const lectureElement = document.createElement("div");
-  lectureElement.className = `calendar-lecture ${isConflict ? "conflict" : ""}`.trim();
+  lectureElement.className =
+    `calendar-lecture ${isConflict ? "conflict" : ""} ${isEnded ? "ended" : ""}`.trim();
   lectureElement.title = ev.title;
 
   const infoLink = document.createElement("a");
@@ -45,14 +51,36 @@ function createCalendarLectureElement(ev, isConflict, isAlreadyPassed) {
   npeopleElement.style.fontSize = "smaller";
   npeopleElement.textContent = "인원수 로딩중..";
 
-  infoLink.append(titleElement, authorElement, timeElement, locElement, npeopleElement);
+  infoLink.append(
+    titleElement,
+    authorElement,
+    timeElement,
+    locElement,
+    npeopleElement,
+  );
 
   const buttonGroup = document.createElement("div");
   buttonGroup.className = "button-group";
   buttonGroup.append(
-    createCalendarButton("export-btn", "💾 ICS", "Export (ICS로 내보내기)", ev.url),
-    createCalendarButton("gcal-btn", "📅 구글", "Add to Google Calendar", ev.url),
-    createCalendarButton("cancel-btn", "❌ 취소", "Cancel (접수 취소)", ev.url, isAlreadyPassed ? "already" : ""),
+    createCalendarButton(
+      "export-btn",
+      "💾 ICS",
+      "Export (ICS로 내보내기)",
+      ev.url,
+    ),
+    createCalendarButton(
+      "gcal-btn",
+      "📅 구글",
+      "Add to Google Calendar",
+      ev.url,
+    ),
+    createCalendarButton(
+      "cancel-btn",
+      "❌ 취소",
+      "Cancel (접수 취소)",
+      ev.url,
+      isAlreadyPassed ? "already" : "",
+    ),
   );
 
   lectureElement.append(infoLink, buttonGroup);
@@ -84,7 +112,8 @@ async function generateCalendarElement() {
     cell.className = `calendar-cell ${isToday ? "today-bg" : ""}`.trim();
 
     const dateElement = document.createElement("div");
-    dateElement.className = `calendar-date ${isToday ? "today-text" : ""}`.trim();
+    dateElement.className =
+      `calendar-date ${isToday ? "today-text" : ""}`.trim();
     dateElement.textContent = `${dayStr}${isToday ? " [오늘]" : ""}`;
     cell.appendChild(dateElement);
 
@@ -94,7 +123,10 @@ async function generateCalendarElement() {
         (index < filteredEvents.length - 1 &&
           filteredEvents[index + 1].startAt < ev.endAt);
       const isAlreadyPassed = ev.startAt < today;
-      cell.appendChild(createCalendarLectureElement(ev, isConflict, isAlreadyPassed));
+      const isEnded = ev.endAt < today;
+      cell.appendChild(
+        createCalendarLectureElement(ev, isConflict, isAlreadyPassed, isEnded),
+      );
     });
 
     wrapper.appendChild(cell);
@@ -105,7 +137,7 @@ async function generateCalendarElement() {
 
 async function main() {
   let target = document.querySelector(
-    "#contentsList > div > div > ul.tabs-st1.col3"
+    "#contentsList > div > div > ul.tabs-st1.col3",
   );
   let newElement = await generateCalendarElement();
   target.after(newElement);
@@ -114,25 +146,25 @@ async function main() {
 // 구글 캘린더 이벤트 URL 생성 함수
 function generateGoogleCalendarURL(lecture) {
   // URL 인코딩 함수
-  const encode = (str) => encodeURIComponent(str).replace(/%20/g, '+');
-  
+  const encode = (str) => encodeURIComponent(str).replace(/%20/g, "+");
+
   // 구글 캘린더 기본 URL
-  const baseUrl = 'https://calendar.google.com/calendar/render?action=TEMPLATE';
-  
+  const baseUrl = "https://calendar.google.com/calendar/render?action=TEMPLATE";
+
   // 제목 추가
   const title = `&text=${encode(lecture.title)}`;
-  
+
   // 시작 및 종료 시간 추가 (ISO 형식으로 변환)
-  const startTime = lecture.startAt.toISOString().replace(/-|:|\.\d+/g, '');
-  const endTime = lecture.endAt.toISOString().replace(/-|:|\.\d+/g, '');
+  const startTime = lecture.startAt.toISOString().replace(/-|:|\.\d+/g, "");
+  const endTime = lecture.endAt.toISOString().replace(/-|:|\.\d+/g, "");
   const dates = `&dates=${startTime}/${endTime}`;
-  
+
   // 위치 추가
-  const location = lecture.loc ? `&location=${encode(lecture.loc)}` : '';
-  
+  const location = lecture.loc ? `&location=${encode(lecture.loc)}` : "";
+
   // 설명 추가 (멘토 정보와 URL 포함)
   const description = `&details=${encode(`멘토: ${lecture.author}\n${lecture.url}`)}`;
-  
+
   // 완성된 URL 반환
   return `${baseUrl}${title}${dates}${location}${description}`;
 }
@@ -140,12 +172,14 @@ function generateGoogleCalendarURL(lecture) {
 async function updateCalendarElement() {
   const eventElems = document.querySelectorAll("div.calendar-lecture");
   for (let ev of eventElems) {
-    const res = await fetch(ev.querySelector("a").href, { credentials: "include" });
+    const res = await fetch(ev.querySelector("a").href, {
+      credentials: "include",
+    });
     const html = await res.text();
     const eventDetails = extractLectureDetailFromHTML(html);
     const { loc, npeople, applyId } = eventDetails;
     let lecture = lectures.find(
-      (lec) => lec.url === ev.querySelector("a").href
+      (lec) => lec.url === ev.querySelector("a").href,
     );
     lecture.loc = loc;
     lecture.npeople = npeople;
@@ -153,11 +187,13 @@ async function updateCalendarElement() {
     let locElem = ev.querySelector('[data-role="loc"]');
     locElem.innerText = loc;
     let npeopleElem = ev.querySelector('[data-role="npeople"]');
-    npeopleElem.innerText = npeople + (lecture.isApproved ? " [개설 확정]" : " [미승인]");
-    if (!lecture.isApproved) {
+    npeopleElem.innerText =
+      npeople + (lecture.isApproved ? " [개설 확정]" : " [미승인]");
+    if (!lecture.isApproved && !ev.classList.contains("ended")) {
+      // 가독성을 위해 이미 지나간 강의는 미승인 글자색 강조 X
       npeopleElem.style.color = "red";
     }
-    
+
     // ICS 내보내기 버튼 이벤트 리스너
     let exportBtn = ev.querySelector(".export-btn");
     exportBtn.addEventListener("click", (e) => {
@@ -170,14 +206,14 @@ async function updateCalendarElement() {
       link.click();
       document.body.removeChild(link);
     });
-    
+
     // 구글 캘린더 버튼 이벤트 리스너
     let gcalBtn = ev.querySelector(".gcal-btn");
     gcalBtn.addEventListener("click", (e) => {
       const googleCalendarURL = generateGoogleCalendarURL(lecture);
-      window.open(googleCalendarURL, '_blank');
+      window.open(googleCalendarURL, "_blank");
     });
-    
+
     // 취소 버튼 이벤트 리스너
     let cancelBtn = ev.querySelector(".cancel-btn");
     cancelBtn.addEventListener("click", (e) => {
