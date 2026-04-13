@@ -15,7 +15,7 @@
 
 .calendar-cell {
   padding: 6px;
-  background: white; 
+  background: white;
 }
 
 .calendar-date {
@@ -49,6 +49,13 @@
 
 .conflict {
   background: #ffe8e8;
+}
+
+/* 가독성 향상을 위해 지나간 강의 카드는 회색으로 표시 */
+.ended {
+  background: #f6f6f6;
+  color: #777;
+  opacity: 0.6;
 }
 
 /* Text title styling */
@@ -146,7 +153,7 @@
 .info-group {
   display: inline-block;
   padding: 8px;
-  font-size: larger; 
+  font-size: larger;
   font-weight: bold;
   width: 100%;
 }
