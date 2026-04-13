@@ -2,6 +2,8 @@
 
 연수생이 접수한 멘토링/특강 내역을 접수 내역 페이지에서 시간표 형태로 확인할 수 있는 브라우저 확장 프로그램입니다.
 
+(연수생분들의 기능 추가/수정 PR을 환영합니다 😀)
+
 ![소마 멘토링 시간표 스크린샷](assets/screenshot-calendar.png)
 
 
@@ -39,14 +41,14 @@
 
 ## 📦 설치 방법
 
-### ✅ 배포 버전 설치
+### ✅ 배포 버전 자동 설치
 
 정식 배포 버전은 각 브라우저 스토어에서 설치합니다.
 
-- Chrome: [Chrome Web Store](https://chromewebstore.google.com/detail/nlemmjbkihccbkdaihfgijnepogepoob)
+- Chrome: ~~[Chrome Web Store](https://chromewebstore.google.com/detail/nlemmjbkihccbkdaihfgijnepogepoob)~~ (스토어 검토 대기중)
 - Firefox: [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/소마-멘토링-시간표)
 
-### 🧪 사전 배포 버전 설치 (ZIP 수동 로드)
+### 🧪 배포 버전 수동 설치 (ZIP 수동 로드)
 
 스토어 반영 전 최신 버전을 직접 확인하려면 Release ZIP을 받아 수동으로 로드합니다.
 
