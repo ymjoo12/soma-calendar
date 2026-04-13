@@ -46,9 +46,9 @@
 - Chrome: [Chrome Web Store](https://chromewebstore.google.com/detail/nlemmjbkihccbkdaihfgijnepogepoob)
 - Firefox: [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/소마-멘토링-시간표)
 
-### 🧪 개발 버전 설치 (ZIP 수동 로드)
+### 🧪 사전 배포 버전 설치 (ZIP 수동 로드)
 
-개발 중인 버전이나 스토어 반영 전 빌드를 직접 확인하려면 Release ZIP을 받아 수동으로 로드합니다.
+스토어 반영 전 최신 버전을 직접 확인하려면 Release ZIP을 받아 수동으로 로드합니다.
 
 1. [Releases](https://github.com/ymjoo12/soma-calendar/releases) 페이지에서 최신 버전의 zip 파일을 다운로드합니다.
 2. 압축을 해제합니다.
@@ -68,13 +68,13 @@
 2. `임시 부가 기능 로드...`를 누릅니다.
 3. `manifest.json`이 포함된 압축 해제 폴더를 선택합니다.
 
-### 🛠️ 개발 버전 설치 (소스코드 기준)
+### 🛠️ 소스코드 기준 설치
 
 ```bash
 git clone https://github.com/ymjoo12/soma-calendar.git
 ```
 
-- 클론한 저장소를 위 `개발 버전 설치 (ZIP 수동 로드)`와 같은 방식으로 브라우저에 로드합니다.
+- 클론한 저장소를 위 `사전 배포 버전 설치 (ZIP 수동 로드)`와 같은 방식으로 브라우저에 로드합니다.
 - 최신 변경은 `git pull`로 반영할 수 있습니다.
 
 

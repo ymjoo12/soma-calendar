@@ -53,7 +53,7 @@ fetch("https://api.github.com/repos/ymjoo12/soma-calendar/releases/latest")
       el.textContent = `🔁 업데이트 가능: ${localVersion} → ${latest}`;
       el.style.color = 'red';
     } else {
-      el.textContent = `🧪 개발 버전 사용 중: ${localVersion} (배포 최신 ${latest})`;
+      el.textContent = `ℹ️ 현재 설치 버전: ${localVersion} (배포 최신 ${latest})`;
       el.style.color = '#1249a7';
     }
   })

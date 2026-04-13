@@ -121,17 +121,13 @@
 
     .button-row {
       display: flex;
-      gap: 8px;
     }
 
     .button-row a {
-      flex: 1;
-      min-width: 0;
-      text-align: center;
+      width: 100%;
     }
 
     .button-primary,
-    .button-secondary,
     .repo-link {
       display: inline-flex;
       align-items: center;
@@ -147,12 +143,6 @@
       background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
       color: #ffffff;
       box-shadow: 0 10px 22px rgba(31, 111, 235, 0.24);
-    }
-
-    .button-secondary {
-      border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.88);
-      color: var(--text);
     }
 
     .meta-card {
@@ -215,23 +205,12 @@
       </p>
       <div class="button-row">
         <a id="store-link" class="button-primary" href="#" target="_blank" rel="noreferrer">스토어로 이동</a>
-        <a
-          class="button-secondary"
-          href="https://github.com/ymjoo12/soma-calendar/releases/latest"
-          target="_blank"
-          rel="noreferrer"
-        >
-          개발 버전 ZIP
-        </a>
       </div>
     </section>
 
     <section class="meta-card">
       <div class="meta-title">버전 정보</div>
       <div id="version-status">버전 확인 중...</div>
-      <div class="meta-subtitle">
-        개발 버전 ZIP 설치와 배포 버전 설치 방법은 README에서 각각 확인할 수 있습니다.
-      </div>
     </section>
 
     <a
