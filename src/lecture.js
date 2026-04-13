@@ -203,6 +203,33 @@ function observeCalendarPopups() {
     }
 }
 
+function renderConflictLectures(popupElement, conflictingLectures) {
+    popupElement.replaceChildren()
+
+    const title = document.createElement("h4")
+    title.textContent = "겹치는 멘토링 목록"
+    popupElement.appendChild(title)
+
+    for (const lecture of conflictingLectures) {
+        const lectureElement = document.createElement("div")
+        lectureElement.className = "overlap-lecture"
+
+        const titleRow = document.createElement("div")
+        const titleStrong = document.createElement("strong")
+        titleStrong.textContent = lecture.title
+        titleRow.appendChild(titleStrong)
+
+        const authorRow = document.createElement("div")
+        authorRow.textContent = `멘토: ${lecture.author}`
+
+        const timeRow = document.createElement("div")
+        timeRow.textContent = `일시: ${lecture.dateStr} ${lecture.timeRangeStr}`
+
+        lectureElement.append(titleRow, authorRow, timeRow)
+        popupElement.appendChild(lectureElement)
+    }
+}
+
 getAllLectures().then((lectures) => {
     const lecturesDictionary = convertLectureDictionary(lectures);
     const lectureDates = document.querySelectorAll("#listFrm > div.boardlist.mt50 > table > tbody > tr > td:nth-child(4)");
@@ -257,20 +284,8 @@ getAllLectures().then((lectures) => {
             
             // 마우스 이벤트 추가
             lectureRow.addEventListener('mousemove', (e) => {
-                // 팝업 내용 생성
-                let popupContent = `<h4>겹치는 멘토링 목록</h4>`;
-                conflictingLectures.forEach(lecture => {
-                    popupContent += `
-                        <div class="overlap-lecture">
-                            <div><strong>${lecture.title}</strong></div>
-                            <div>멘토: ${lecture.author}</div>
-                            <div>일시: ${lecture.dateStr} ${lecture.timeRangeStr}</div>
-                        </div>
-                    `;
-                });
-                
                 // 팝업 표시
-                popupElement.innerHTML = popupContent;
+                renderConflictLectures(popupElement, conflictingLectures);
                 popupElement.style.display = 'block';
                 
                 // 마우스 커서 위치에 따라 팝업 위치 설정

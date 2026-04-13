@@ -1,5 +1,9 @@
 const PAGE_ONE = "1"
 
+function parseHtmlDocument(html) {
+  return new DOMParser().parseFromString(html, "text/html");
+}
+
 function setPageIndexToOne(url){
   if(url === undefined){
     return undefined;
@@ -15,8 +19,7 @@ function normalizeTimeStr(time) {
   }
   
 function extractLectureListFromHTML(html) {
-  const container = document.createElement('div');
-  container.innerHTML = html;
+  const container = parseHtmlDocument(html);
 
   const rows = container.querySelectorAll("#contentsList > div > div > div.boardlist > div.tbl-ovx > table > tbody > tr");
   const lectures = [];
@@ -33,13 +36,11 @@ function extractLectureListFromHTML(html) {
     const author = tds[3].innerText.trim();
     if (!url || !title || !author) continue;
     
-    const dateHTML = tds[4].innerHTML
-      .trim()
-      .replace(/&nbsp;/g, "")
-      .trim();
-    const [dateStr, timeRangeStr] = dateHTML
-      .split("<br>")
-      .map((str) => str.trim());
+    const [dateStr, timeRangeStr] = tds[4].innerText
+      .replace(/\u00a0/g, " ")
+      .split("\n")
+      .map((str) => str.trim())
+      .filter(Boolean);
     if (!dateStr || !timeRangeStr) continue;
 
     const isApproved = tds[7].innerText.trim() === "OK";
@@ -53,8 +54,7 @@ function extractLectureListFromHTML(html) {
 }
 
 function extractLectureDetailFromHTML(html) {
-  const container = document.createElement("div");
-  container.innerHTML = html;
+  const container = parseHtmlDocument(html);
   const cancelBtn = container.querySelector("#contentsList > div > div > div.btn_w-st1.mt50 > button.btn-st1.bg-black_r");
   const getTopValue = (label) => {
     const group = [...container.querySelectorAll("div.top .group")]
@@ -78,8 +78,7 @@ function extractLectureDetailFromHTML(html) {
 async function getTotalPages(baseUrl){
   const res = await fetch(baseUrl, { credentials: "include" });
   const html = await res.text();
-  const container = document.createElement("div")
-  container.innerHTML = html
+  const container = parseHtmlDocument(html)
   const totalStr = container.querySelector(".bbs-total strong.color-blue")?.nextSibling?.textContent
   const total = parseInt(totalStr?.replace(":", "")?.trim()) || 0;
   const totalPages = Math.ceil(total / 10);

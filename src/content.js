@@ -1,10 +1,70 @@
 let lectures = [];
 
+function createCalendarButton(className, label, title, url, extraClass = "") {
+  const button = document.createElement("button");
+  button.className = extraClass ? `${className} ${extraClass}` : className;
+  button.dataset.id = url;
+  button.style.flex = "1";
+  button.title = title;
+  button.textContent = label;
+  return button;
+}
+
+function createCalendarLectureElement(ev, isConflict, isAlreadyPassed) {
+  const lectureElement = document.createElement("div");
+  lectureElement.className = `calendar-lecture ${isConflict ? "conflict" : ""}`.trim();
+  lectureElement.title = ev.title;
+
+  const infoLink = document.createElement("a");
+  infoLink.href = ev.url;
+  infoLink.className = "info-group";
+
+  const titleElement = document.createElement("div");
+  titleElement.className = "text-title";
+  titleElement.dataset.role = "title";
+  titleElement.textContent = ev.title;
+
+  const authorElement = document.createElement("div");
+  authorElement.dataset.role = "author";
+  authorElement.style.fontSize = "small";
+  authorElement.style.marginBottom = "4px";
+  authorElement.textContent = ev.author;
+
+  const timeElement = document.createElement("div");
+  timeElement.dataset.role = "time";
+  timeElement.style.fontSize = "smaller";
+  timeElement.textContent = ev.timeRangeStr;
+
+  const locElement = document.createElement("div");
+  locElement.dataset.role = "loc";
+  locElement.style.fontSize = "smaller";
+  locElement.textContent = "장소 로딩중..";
+
+  const npeopleElement = document.createElement("div");
+  npeopleElement.dataset.role = "npeople";
+  npeopleElement.style.fontSize = "smaller";
+  npeopleElement.textContent = "인원수 로딩중..";
+
+  infoLink.append(titleElement, authorElement, timeElement, locElement, npeopleElement);
+
+  const buttonGroup = document.createElement("div");
+  buttonGroup.className = "button-group";
+  buttonGroup.append(
+    createCalendarButton("export-btn", "💾 ICS", "Export (ICS로 내보내기)", ev.url),
+    createCalendarButton("gcal-btn", "📅 구글", "Add to Google Calendar", ev.url),
+    createCalendarButton("cancel-btn", "❌ 취소", "Cancel (접수 취소)", ev.url, isAlreadyPassed ? "already" : ""),
+  );
+
+  lectureElement.append(infoLink, buttonGroup);
+  return lectureElement;
+}
+
 async function generateCalendarElement() {
   const today = new Date();
   const startDate = new Date(today);
   startDate.setDate(today.getDate() - today.getDay());
-  const days = [];
+  const wrapper = document.createElement("div");
+  wrapper.id = "history-calendar";
 
   lectures = await getAllLectures();
 
@@ -20,49 +80,25 @@ async function generateCalendarElement() {
       return eventDate.toDateString() === date.toDateString();
     });
 
-    days.push(`
-      <div class="calendar-cell ${isToday ? "today-bg" : ""}">
-        <div class="calendar-date ${isToday ? "today-text" : ""}">${dayStr} ${isToday ? " [오늘]" : ""}</div>
-        ${filteredEvents
-          .map((ev, i) => {
-            const isConflict =
-              (i > 0 && filteredEvents[i - 1].endAt > ev.startAt) ||
-              (i < filteredEvents.length - 1 &&
-                filteredEvents[i + 1].startAt < ev.endAt);
-            const isAlreadyPassed = ev.startAt < today;
-            return `
-            <div class="calendar-lecture ${
-              isConflict ? "conflict" : ""
-            }" title="${ev.title}">
-              <a href="${
-                ev.url
-              }" class="info-group">
-                <div id="title" class="text-title">${
-                  ev.title
-                }</div>
-                <div id="author" style="font-size: small; margin-bottom: 4px;">${
-                  ev.author
-                }</div>
-                <div id="time" style="font-size: smaller;">${ev.timeRangeStr}</div>
-                <div id="loc" style="font-size: smaller;">장소 로딩중..</div>
-                <div id="npeople" style="font-size: smaller;">인원수 로딩중..</div>
-              </a>
-              <div class="button-group">
-                <button class="export-btn" data-id="${ev.url}" style="flex: 1;" title="Export (ICS로 내보내기)">💾 ICS</button>
-                <button class="gcal-btn" data-id="${ev.url}" style="flex: 1;" title="Add to Google Calendar">📅 구글</button>
-                <button class="cancel-btn ${isAlreadyPassed ? "already" : ""}" data-id="${ev.url}" style="flex: 1;" title="Cancel (접수 취소)">❌ 취소</button>
-              </div>
-            </div>
-          `;
-          })
-          .join("")}
-      </div>
-    `);
-  }
+    const cell = document.createElement("div");
+    cell.className = `calendar-cell ${isToday ? "today-bg" : ""}`.trim();
 
-  const wrapper = document.createElement("div");
-  wrapper.id = "history-calendar";
-  wrapper.innerHTML = days.join("");
+    const dateElement = document.createElement("div");
+    dateElement.className = `calendar-date ${isToday ? "today-text" : ""}`.trim();
+    dateElement.textContent = `${dayStr}${isToday ? " [오늘]" : ""}`;
+    cell.appendChild(dateElement);
+
+    filteredEvents.forEach((ev, index) => {
+      const isConflict =
+        (index > 0 && filteredEvents[index - 1].endAt > ev.startAt) ||
+        (index < filteredEvents.length - 1 &&
+          filteredEvents[index + 1].startAt < ev.endAt);
+      const isAlreadyPassed = ev.startAt < today;
+      cell.appendChild(createCalendarLectureElement(ev, isConflict, isAlreadyPassed));
+    });
+
+    wrapper.appendChild(cell);
+  }
 
   return wrapper;
 }
@@ -114,9 +150,9 @@ async function updateCalendarElement() {
     lecture.loc = loc;
     lecture.npeople = npeople;
     lecture.applyId = applyId;
-    let locElem = ev.querySelector("#loc");
+    let locElem = ev.querySelector('[data-role="loc"]');
     locElem.innerText = loc;
-    let npeopleElem = ev.querySelector("#npeople");
+    let npeopleElem = ev.querySelector('[data-role="npeople"]');
     npeopleElem.innerText = npeople + (lecture.isApproved ? " [개설 확정]" : " [미승인]");
     if (!lecture.isApproved) {
       npeopleElem.style.color = "red";

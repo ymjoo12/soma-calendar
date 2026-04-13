@@ -1,5 +1,10 @@
 // popup.js
 
+const STORE_LINKS = {
+  chrome: "https://chromewebstore.google.com/detail/nlemmjbkihccbkdaihfgijnepogepoob",
+  firefox: "https://addons.mozilla.org/firefox/addon/%EC%86%8C%EB%A7%88-%EB%A9%98%ED%86%A0%EB%A7%81-%EC%8B%9C%EA%B0%84%ED%91%9C",
+};
+
 function compareVersions(v1, v2) {
   const toNums = (v) => v.split('.').map(Number);
   const [a1, b1, c1, d1] = toNums(v1);
@@ -10,6 +15,12 @@ function compareVersions(v1, v2) {
   if (c1 !== c2) return c1 - c2;
   return d1 - d2;
 }
+
+function getStoreLink() {
+  return /Firefox/i.test(navigator.userAgent) ? STORE_LINKS.firefox : STORE_LINKS.chrome;
+}
+
+document.getElementById("store-link").href = getStoreLink();
 
 const localVersion = chrome.runtime.getManifest().version;
 
