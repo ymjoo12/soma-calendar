@@ -1,7 +1,8 @@
 // popup.js
 
 const STORE_LINKS = {
-  chrome: "https://chromewebstore.google.com/detail/nlemmjbkihccbkdaihfgijnepogepoob",
+  chrome:
+    "https://chromewebstore.google.com/detail/nlemmjbkihccbkdaihfgijnepogepoob",
   firefox: "https://addons.mozilla.org/firefox/addon/soma-calendar",
 };
 
