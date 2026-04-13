@@ -19,7 +19,7 @@
       "css": ["src/calendar.css"]
     },
     {
-      "matches":["https://*.swmaestro.ai/sw/mypage/mentoLec/list.do?**", "https://swmaestro.ai/sw/mypage/mentoLec/list.do?*", "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/list.do?**", "https://swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*"],
+      "matches":["https://*.swmaestro.ai/sw/mypage/mentoLec/list.do?*", "https://swmaestro.ai/sw/mypage/mentoLec/list.do?*", "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*", "https://swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*"],
       "js": ["src/utils.js", "src/lecture.js"],
       "css": ["src/calendar.css"]
     },
