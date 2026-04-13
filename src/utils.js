@@ -88,7 +88,7 @@ async function getTotalPages(baseUrl){
 async function getAllLectures() {
   const lectures = [];
 
-  const path = "/sw/mypage/userAnswer/history.do?menuNo=200047";
+  const path = `${location.pathname.split("/sw/")[0]}/sw/mypage/userAnswer/history.do?menuNo=200047`;
   const totalPages = await getTotalPages(path)
 
   for (let page = 1; page <= totalPages; page++) {
@@ -154,7 +154,7 @@ function getLectureId(url){
 
 function cancelApply(applySn, qustnrSn) {
   if (confirm("선택된 항목의 접수를 취소 하시겠습니까?")) {
-    fetch("/sw/mypage/mentoLec/applyCancel.json", {
+    fetch(`${location.pathname.split("/sw/")[0]}/sw/mypage/mentoLec/applyCancel.json`, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded"
