@@ -2,7 +2,7 @@
 
 const STORE_LINKS = {
   chrome: "https://chromewebstore.google.com/detail/nlemmjbkihccbkdaihfgijnepogepoob",
-  firefox: "https://addons.mozilla.org/firefox/addon/%EC%86%8C%EB%A7%88-%EB%A9%98%ED%86%A0%EB%A7%81-%EC%8B%9C%EA%B0%84%ED%91%9C",
+  firefox: "https://addons.mozilla.org/firefox/addon/soma-calendar",
 };
 
 function compareVersions(v1, v2) {
