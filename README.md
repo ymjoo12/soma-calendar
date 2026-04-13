@@ -32,54 +32,41 @@
 
 - 소마 홈페이지, 멘토링/특강 접수 내역 페이지로 이동할 수 있는 버튼을 제공합니다.
 - 확장 프로그램의 버전 정보를 표시합니다.
-- 문의(github), 웹 스토어(chrome, firefox) 링크를 제공합니다.
+- 문의(GitHub), 웹 스토어(Chrome, Firefox) 링크를 제공합니다.
 
 
-## 🧩 지원 브라우저
+## 🧩 지원 브라우저 (스토어 설치)
 
-- **Chrome** (호환 브라우저 포함)
-- **Firefox**
+- **Chrome** (호환 브라우저 포함): ~~[Chrome Web Store](https://chromewebstore.google.com/detail/nlemmjbkihccbkdaihfgijnepogepoob)~~ (스토어 검토 대기중)
+- **Firefox**: [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/소마-멘토링-시간표)
 
 
-## 📦 설치 방법
-
-### ✅ 배포 버전 자동 설치
-
-정식 배포 버전은 각 브라우저 스토어에서 설치합니다.
-
-- Chrome: ~~[Chrome Web Store](https://chromewebstore.google.com/detail/nlemmjbkihccbkdaihfgijnepogepoob)~~ (스토어 검토 대기중)
-- Firefox: [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/소마-멘토링-시간표)
-
-### 🧪 배포 버전 수동 설치 (ZIP 수동 로드)
-
-스토어 반영 전 최신 버전을 직접 확인하려면 Release ZIP을 받아 수동으로 로드합니다.
+## 📦 수동 설치 방법
 
 1. [Releases](https://github.com/ymjoo12/soma-calendar/releases) 페이지에서 최신 버전의 zip 파일을 다운로드합니다.
 2. 압축을 해제합니다.
 3. 브라우저에 맞는 방법으로 확장 프로그램을 로드합니다.
-4. `soma-calendar` 폴더(압축 해제된 폴더)를 선택합니다.
+4. `soma-calendar` 폴더(압축해제된 폴더)를 선택합니다.
 
-#### Chrome
+### 🔧 Chrome
 
-1. 주소창에 `chrome://extensions`를 입력합니다.
-2. `개발자 모드`를 켭니다.
-3. `압축해제된 확장 프로그램을 로드합니다`를 누릅니다.
-4. `soma-calendar` 폴더를 선택합니다.
+1. 주소창에 `chrome://extensions` 입력
+2. "개발자 모드 (Developer mode)" 설정 (스토어에 없는 확장 프로그램을 설치하기 위해 필요합니다.)
+3. "압축해제된 확장 프로그램 로드 (Load unpacked)" 클릭
+4. `soma-calendar` 폴더(압축해제된 폴더)를 선택합니다.
 
-#### Firefox
+### 🔧 Firefox
 
-1. 주소창에 `about:debugging#/runtime/this-firefox`를 입력합니다.
-2. `임시 부가 기능 로드...`를 누릅니다.
-3. `manifest.json`이 포함된 압축 해제 폴더를 선택합니다.
+1. 주소창에 `about:debugging#/runtime/this-firefox` 입력
+2. "임시 부가 기능 로드..." 클릭
+3. `soma-calendar` 폴더(압축해제된 폴더) 혹은 폴더 내 `manifest.json` 파일을 선택합니다.
 
-### 🛠️ 소스코드 기준 설치
+### 🔧 개발 버전 설치
 
 ```bash
 git clone https://github.com/ymjoo12/soma-calendar.git
 ```
-
-- 클론한 저장소를 위 `사전 배포 버전 설치 (ZIP 수동 로드)`와 같은 방식으로 브라우저에 로드합니다.
-- 최신 변경은 `git pull`로 반영할 수 있습니다.
+- git pull을 통해 최신 버전으로 업데이트 가능합니다.
 
 
 ## 🙌 Contributors
