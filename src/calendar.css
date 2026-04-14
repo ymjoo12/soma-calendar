@@ -211,11 +211,23 @@
   color: white;
 }
 
-.already {
+.past,
+.unavailable {
   cursor: not-allowed;
 }
 
-.already:hover {
-  background-color: #00000011;
-  color: #ff4444;
+.cancel-btn:disabled,
+.cancel-btn.past,
+.cancel-btn.unavailable {
+  background-color: #00000008;
+  color: #999999;
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+
+.cancel-btn:disabled:hover,
+.cancel-btn.past:hover,
+.cancel-btn.unavailable:hover {
+  background-color: #00000008;
+  color: #999999;
 }
