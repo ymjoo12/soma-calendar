@@ -38,7 +38,7 @@
 
 ## 🧩 지원 브라우저 (스토어 설치)
 
-- **Chrome** (호환 브라우저 포함): ~~[Chrome Web Store](https://chromewebstore.google.com/detail/nlemmjbkihccbkdaihfgijnepogepoob)~~ (스토어 검토 대기중)
+- **Chrome** (호환 브라우저 포함): [Chrome Web Store](https://chromewebstore.google.com/detail/nlemmjbkihccbkdaihfgijnepogepoob)
 - **Firefox**: [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/soma-calendar)
 
 

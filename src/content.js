@@ -136,9 +136,10 @@ async function generateCalendarElement() {
 }
 
 async function main() {
-  let target = document.querySelector(
-    "#contentsList > div > div > ul.tabs-st1.col3",
-  );
+  let target =
+    document.querySelector("#contentsList > div > div > ul.tabs-st1.col2") ||
+    document.querySelector("#contentsList > div > div > ul.tabs-st1.col3"); // 셀렉터 fallback 옵션 추가
+
   let newElement = await generateCalendarElement();
   target.after(newElement);
 }
