@@ -137,7 +137,7 @@ async function generateCalendarElement() {
 
 async function main() {
   let target = document.querySelector(
-    "#contentsList > div > div > ul.tabs-st1.col3",
+    "#contentsList > div > div > ul.tabs-st1.col2",
   );
   let newElement = await generateCalendarElement();
   target.after(newElement);
