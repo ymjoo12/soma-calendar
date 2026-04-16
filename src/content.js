@@ -136,6 +136,8 @@ async function generateCalendarElement() {
 }
 
 async function main() {
+  document.getElementById("history-calendar")?.remove();
+
   let target =
     document.querySelector("#contentsList > div > div > ul.tabs-st1.col2") ||
     document.querySelector("#contentsList > div > div > ul.tabs-st1.col3"); // 셀렉터 fallback 옵션 추가
