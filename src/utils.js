@@ -50,8 +50,16 @@ function extractLectureListFromHTML(html) {
     if (!dateStr || !timeRangeStr) continue;
 
     const isApproved = tds[7].innerText.trim() === "OK";
+    const cancelHref = row
+      .querySelector('a[href*="delDate("]')
+      ?.getAttribute("href");
+    const cancelMatch = cancelHref?.match(
+      /delDate\('([^']+)'\s*,\s*'([^']+)'\s*,\s*'([^']+)'\)/,
+    );
     const params = new URL(url).searchParams;
-    const lectureId = params.get("qustnrSn");
+    const lectureId = cancelMatch?.[2] || params.get("qustnrSn");
+    const cancelId = cancelMatch?.[1] || null;
+    const cancelGubun = cancelMatch?.[3] || null;
 
     lectures.push({
       url,
@@ -61,6 +69,8 @@ function extractLectureListFromHTML(html) {
       timeRangeStr,
       isApproved,
       lectureId,
+      cancelId,
+      cancelGubun,
     });
   }
 
@@ -178,16 +188,27 @@ function getLectureId(url) {
   return qustnrSn;
 }
 
-function cancelApply(applySn, qustnrSn) {
+function cancelApply(cancelId, qustnrSn, gubun = "mentoLec") {
+  if (!cancelId || !qustnrSn) {
+    alert("취소할 수 없는 항목입니다.");
+    return;
+  }
+
+  if (typeof window.delDate === "function") {
+    window.delDate(cancelId, qustnrSn, gubun);
+    return;
+  }
+
   if (confirm("선택된 항목의 접수를 취소 하시겠습니까?")) {
-    fetch(`${getSwPathPrefix()}/sw/mypage/mentoLec/applyCancel.json`, {
+    fetch(`${getSwPathPrefix()}/sw/mypage/userAnswer/cancel.json`, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: new URLSearchParams({
-        id: applySn,
-        qustnrSn: qustnrSn,
+        id: cancelId,
+        qustnrSn,
+        gubun,
       }),
     })
       .then((res) => res.json())
@@ -197,12 +218,15 @@ function cancelApply(applySn, qustnrSn) {
           if (cancelAt === "Y") {
             alert("취소 하였습니다.");
           } else {
-            alert("강의 날 이후 부터는 취소가 불가능 합니다.");
+            alert("강의날짜 하루 전날부터는 취소가 불가능 합니다.");
           }
           location.reload();
         } else {
-          alert("작업에 실패하였습니다.");
+          alert("삭제에 실패하였습니다.");
         }
+      })
+      .catch(() => {
+        alert("취소 요청 중 오류가 발생했습니다.");
       });
   }
 }
