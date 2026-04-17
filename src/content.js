@@ -1,12 +1,20 @@
 let lectures = [];
 
-function createCalendarButton(className, label, title, url, extraClass = "") {
+function createCalendarButton(
+  className,
+  label,
+  title,
+  url,
+  extraClass = "",
+  disabled = false,
+) {
   const button = document.createElement("button");
   button.className = extraClass ? `${className} ${extraClass}` : className;
   button.dataset.id = url;
   button.style.flex = "1";
   button.title = title;
   button.textContent = label;
+  button.disabled = disabled;
   return button;
 }
 
@@ -61,6 +69,7 @@ function createCalendarLectureElement(
 
   const buttonGroup = document.createElement("div");
   buttonGroup.className = "button-group";
+  const isCancelUnavailable = !ev.cancelId;
   buttonGroup.append(
     createCalendarButton(
       "export-btn",
@@ -77,9 +86,12 @@ function createCalendarLectureElement(
     createCalendarButton(
       "cancel-btn",
       "❌ 취소",
-      "Cancel (접수 취소)",
+      isCancelUnavailable
+        ? "Cancel unavailable (접수 취소 불가)"
+        : "Cancel (접수 취소)",
       ev.url,
-      isAlreadyPassed ? "already" : "",
+      isCancelUnavailable ? "unavailable" : isAlreadyPassed ? "past" : "",
+      isCancelUnavailable,
     ),
   );
 
@@ -178,13 +190,12 @@ async function updateCalendarElement() {
     });
     const html = await res.text();
     const eventDetails = extractLectureDetailFromHTML(html);
-    const { loc, npeople, applyId } = eventDetails;
+    const { loc, npeople } = eventDetails;
     let lecture = lectures.find(
       (lec) => lec.url === ev.querySelector("a").href,
     );
     lecture.loc = loc;
     lecture.npeople = npeople;
-    lecture.applyId = applyId;
     let locElem = ev.querySelector('[data-role="loc"]');
     locElem.innerText = loc;
     let npeopleElem = ev.querySelector('[data-role="npeople"]');
@@ -217,12 +228,11 @@ async function updateCalendarElement() {
 
     // 취소 버튼 이벤트 리스너
     let cancelBtn = ev.querySelector(".cancel-btn");
+    if (cancelBtn.disabled || lecture.startAt < new Date()) {
+      continue;
+    }
     cancelBtn.addEventListener("click", (e) => {
-      if (lecture.startAt < new Date()) {
-        alert("이미 지나간 강의는 취소할 수 없습니다.");
-      } else {
-        cancelApply(lecture.applyId, lecture.lectureId);
-      }
+      cancelApply(lecture.cancelId, lecture.lectureId, lecture.cancelGubun);
     });
   }
 }
