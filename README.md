@@ -1,4 +1,11 @@
-# 소마 멘토링 시간표 (Browser Extension)
+# 소마 멘토링 시간표 (Soma Calendar)
+
+<a href="https://chromewebstore.google.com/detail/nlemmjbkihccbkdaihfgijnepogepoob" target="_blank" title="Get Soma Calendar from Chrome Web Store"><img height="48" src="https://github.com/user-attachments/assets/20a6e44b-fd46-4e6c-8ea6-aad436035753" alt="Available in the Chrome Web Store" /></a>
+<a href="https://addons.mozilla.org/firefox/addon/soma-calendar/" target="_blank" title="Get Soma Calendar from Firefox Add-ons"><img height="48" src="https://github.com/user-attachments/assets/c0e99e6b-97cf-4af2-9737-099db7d3538b" alt="Get The Add-on for Firefox" /></a>
+
+[![](https://img.shields.io/chrome-web-store/v/nlemmjbkihccbkdaihfgijnepogepoob?style=flat-square&logo=google-chrome&logoColor=white&label=Chrome&color=E23A2E)](https://chrome.google.com/webstore/detail/nlemmjbkihccbkdaihfgijnepogepoob)
+[![](https://img.shields.io/amo/v/soma-calendar?style=flat-square&logo=firefox-browser&logoColor=white&label=Firefox&color=FF7139)](https://addons.mozilla.org/firefox/addon/soma-calendar/)
+[![](https://img.shields.io/github/v/release/ymjoo12/soma-calendar?style=flat-square&logo=github&logoColor=white&label=GitHub&color=181717)](https://github.com/ymjoo12/soma-calendar/releases)
 
 연수생이 접수한 멘토링/특강 내역을 접수 내역 페이지에서 시간표 형태로 확인할 수 있는 브라우저 확장 프로그램입니다.
 
