@@ -252,7 +252,7 @@ async function updateCalendarElement() {
     locElem.innerText = loc;
     let npeopleElem = ev.querySelector('[data-role="npeople"]');
     const peopleText = totalCount
-      ? `${appliedCount ?? 0}/${totalCount}`
+      ? `${appliedCount ?? 0}명 / ${totalCount}명`
       : npeople;
     npeopleElem.innerText =
       peopleText + (lecture.isApproved ? " [개설 확정]" : " [미승인]");
