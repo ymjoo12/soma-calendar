@@ -251,9 +251,10 @@ async function updateCalendarElement() {
     let locElem = ev.querySelector('[data-role="loc"]');
     locElem.innerText = loc;
     let npeopleElem = ev.querySelector('[data-role="npeople"]');
-    const peopleText = totalCount
-      ? `${appliedCount ?? 0}명 / ${totalCount}명`
-      : npeople;
+    const peopleText =
+      appliedCount !== null && totalCount !== null
+        ? `${appliedCount}명 / ${totalCount}명`
+        : npeople;
     npeopleElem.innerText =
       peopleText + (lecture.isApproved ? " [개설 확정]" : " [미승인]");
     if (!lecture.isApproved && !ev.classList.contains("ended")) {
