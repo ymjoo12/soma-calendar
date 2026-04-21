@@ -99,6 +99,63 @@ function createCalendarLectureElement(
   return lectureElement;
 }
 
+function createDayCell(date, today, lectures) {
+  const weekday = ["일", "월", "화", "수", "목", "금", "토"][date.getDay()];
+  const dayStr = `${date.getMonth() + 1}월 ${date.getDate()}일 (${weekday})`;
+  const isToday = date.toDateString() === today.toDateString();
+  const filteredEvents = lectures.filter(
+    (ev) => ev.startAt.toDateString() === date.toDateString(),
+  );
+
+  const cell = document.createElement("div");
+  cell.className = `calendar-cell ${isToday ? "today-bg" : ""}`.trim();
+
+  const dateElement = document.createElement("div");
+  dateElement.className =
+    `calendar-date ${isToday ? "today-text" : ""}`.trim();
+  dateElement.textContent = `${dayStr}${isToday ? " [오늘]" : ""}`;
+  cell.appendChild(dateElement);
+
+  filteredEvents.forEach((ev, index) => {
+    const isConflict =
+      (index > 0 && filteredEvents[index - 1].endAt > ev.startAt) ||
+      (index < filteredEvents.length - 1 &&
+        filteredEvents[index + 1].startAt < ev.endAt);
+    const isAlreadyPassed = ev.startAt < today;
+    const isEnded = ev.endAt < today;
+    cell.appendChild(
+      createCalendarLectureElement(ev, isConflict, isAlreadyPassed, isEnded),
+    );
+  });
+
+  return cell;
+}
+
+function createPastButton(wrapper, startDate, today) {
+  let currentStart = new Date(startDate);
+
+  const cell = document.createElement("div");
+  cell.className = "calendar-cell past-btn-cell";
+
+  const btn = document.createElement("button");
+  btn.className = "past-btn";
+  btn.textContent = "⬆ 이전 2주 보기";
+
+  btn.addEventListener("click", () => {
+    currentStart.setDate(currentStart.getDate() - 14);
+    const insertBefore = cell.nextSibling;
+    for (let i = 0; i < 14; i++) {
+      const date = new Date(currentStart);
+      date.setDate(currentStart.getDate() + i);
+      wrapper.insertBefore(createDayCell(date, today, lectures), insertBefore);
+    }
+    updateCalendarElement();
+  });
+
+  cell.appendChild(btn);
+  return cell;
+}
+
 async function generateCalendarElement() {
   const today = new Date();
   const startDate = new Date(today);
@@ -108,40 +165,12 @@ async function generateCalendarElement() {
 
   lectures = await getAllLectures();
 
+  wrapper.appendChild(createPastButton(wrapper, startDate, today));
+
   for (let i = 0; i < 28; i++) {
     const date = new Date(startDate);
     date.setDate(startDate.getDate() + i);
-
-    const weekday = ["일", "월", "화", "수", "목", "금", "토"][date.getDay()];
-    const dayStr = `${date.getMonth() + 1}월 ${date.getDate()}일 (${weekday})`;
-    const isToday = date.toDateString() === today.toDateString();
-    const filteredEvents = lectures.filter((ev) => {
-      const eventDate = new Date(ev.startAt);
-      return eventDate.toDateString() === date.toDateString();
-    });
-
-    const cell = document.createElement("div");
-    cell.className = `calendar-cell ${isToday ? "today-bg" : ""}`.trim();
-
-    const dateElement = document.createElement("div");
-    dateElement.className =
-      `calendar-date ${isToday ? "today-text" : ""}`.trim();
-    dateElement.textContent = `${dayStr}${isToday ? " [오늘]" : ""}`;
-    cell.appendChild(dateElement);
-
-    filteredEvents.forEach((ev, index) => {
-      const isConflict =
-        (index > 0 && filteredEvents[index - 1].endAt > ev.startAt) ||
-        (index < filteredEvents.length - 1 &&
-          filteredEvents[index + 1].startAt < ev.endAt);
-      const isAlreadyPassed = ev.startAt < today;
-      const isEnded = ev.endAt < today;
-      cell.appendChild(
-        createCalendarLectureElement(ev, isConflict, isAlreadyPassed, isEnded),
-      );
-    });
-
-    wrapper.appendChild(cell);
+    wrapper.appendChild(createDayCell(date, today, lectures));
   }
 
   return wrapper;
@@ -185,6 +214,7 @@ function generateGoogleCalendarURL(lecture) {
 async function updateCalendarElement() {
   const eventElems = document.querySelectorAll("div.calendar-lecture");
   for (let ev of eventElems) {
+    if (ev.querySelector('[data-role="loc"]').innerText !== "장소 로딩중..") continue;
     const res = await fetch(ev.querySelector("a").href, {
       credentials: "include",
     });
