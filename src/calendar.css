@@ -36,7 +36,8 @@
 /* Past weeks button */
 .past-btn-cell {
   grid-column: 1 / -1;
-  text-align: center;
+  display: flex;
+  gap: 1px;
 }
 
 .past-btn {
@@ -54,6 +55,10 @@
 .past-btn:hover {
   background-color: #114c9dcc;
   color: white;
+}
+
+.past-btn[hidden] {
+  display: none;
 }
 
 /* Lecture styling */

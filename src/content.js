@@ -111,8 +111,7 @@ function createDayCell(date, today, lectures) {
   cell.className = `calendar-cell ${isToday ? "today-bg" : ""}`.trim();
 
   const dateElement = document.createElement("div");
-  dateElement.className =
-    `calendar-date ${isToday ? "today-text" : ""}`.trim();
+  dateElement.className = `calendar-date ${isToday ? "today-text" : ""}`.trim();
   dateElement.textContent = `${dayStr}${isToday ? " [오늘]" : ""}`;
   cell.appendChild(dateElement);
 
@@ -133,6 +132,8 @@ function createDayCell(date, today, lectures) {
 
 function createPastButton(wrapper, startDate, today) {
   let currentStart = new Date(startDate);
+  const initialStart = new Date(startDate);
+  const pastCells = [];
 
   const cell = document.createElement("div");
   cell.className = "calendar-cell past-btn-cell";
@@ -141,18 +142,35 @@ function createPastButton(wrapper, startDate, today) {
   btn.className = "past-btn";
   btn.textContent = "⬆ 이전 2주 보기";
 
+  const resetBtn = document.createElement("button");
+  resetBtn.className = "past-btn";
+  resetBtn.textContent = "↻ 이번주부터 보기";
+  resetBtn.hidden = true;
+
   btn.addEventListener("click", () => {
     currentStart.setDate(currentStart.getDate() - 14);
     const insertBefore = cell.nextSibling;
     for (let i = 0; i < 14; i++) {
       const date = new Date(currentStart);
       date.setDate(currentStart.getDate() + i);
-      wrapper.insertBefore(createDayCell(date, today, lectures), insertBefore);
+      const dayCell = createDayCell(date, today, lectures);
+      pastCells.push(dayCell);
+      wrapper.insertBefore(dayCell, insertBefore);
     }
+    resetBtn.hidden = false;
     updateCalendarElement();
   });
 
-  cell.appendChild(btn);
+  resetBtn.addEventListener("click", () => {
+    for (const pastCell of pastCells) {
+      pastCell.remove();
+    }
+    pastCells.length = 0;
+    currentStart = new Date(initialStart);
+    resetBtn.hidden = true;
+  });
+
+  cell.append(btn, resetBtn);
   return cell;
 }
 
@@ -214,7 +232,8 @@ function generateGoogleCalendarURL(lecture) {
 async function updateCalendarElement() {
   const eventElems = document.querySelectorAll("div.calendar-lecture");
   for (let ev of eventElems) {
-    if (ev.querySelector('[data-role="loc"]').innerText !== "장소 로딩중..") continue;
+    if (ev.querySelector('[data-role="loc"]').innerText !== "장소 로딩중..")
+      continue;
     const res = await fetch(ev.querySelector("a").href, {
       credentials: "include",
     });
