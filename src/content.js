@@ -144,7 +144,7 @@ function createPastButton(wrapper, startDate, today) {
 
   const resetBtn = document.createElement("button");
   resetBtn.className = "past-btn";
-  resetBtn.textContent = "⟳ 이번주부터 보기";
+  resetBtn.textContent = "⭯ 이번주부터 보기";
   resetBtn.hidden = true;
 
   btn.addEventListener("click", () => {
