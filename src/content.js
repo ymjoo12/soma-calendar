@@ -239,17 +239,23 @@ async function updateCalendarElement() {
     });
     const html = await res.text();
     const eventDetails = extractLectureDetailFromHTML(html);
-    const { loc, npeople } = eventDetails;
+    const { loc, npeople, appliedCount, totalCount, isApproved } = eventDetails;
     let lecture = lectures.find(
       (lec) => lec.url === ev.querySelector("a").href,
     );
     lecture.loc = loc;
     lecture.npeople = npeople;
+    if (isApproved !== null) {
+      lecture.isApproved = isApproved;
+    }
     let locElem = ev.querySelector('[data-role="loc"]');
     locElem.innerText = loc;
     let npeopleElem = ev.querySelector('[data-role="npeople"]');
+    const peopleText = totalCount
+      ? `${appliedCount ?? 0}/${totalCount}`
+      : npeople;
     npeopleElem.innerText =
-      npeople + (lecture.isApproved ? " [개설 확정]" : " [미승인]");
+      peopleText + (lecture.isApproved ? " [개설 확정]" : " [미승인]");
     if (!lecture.isApproved && !ev.classList.contains("ended")) {
       // 가독성을 위해 이미 지나간 강의는 미승인 글자색 강조 X
       npeopleElem.style.color = "red";
