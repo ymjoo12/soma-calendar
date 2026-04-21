@@ -90,11 +90,15 @@
 }
 
 .ended .text-title,
-.ended .info-group,
+.ended .info-group {
+  background: #f8f8f8;
+  color: #666;
+}
+
 .ended .export-btn,
 .ended .gcal-btn,
 .ended .cancel-btn {
-  background: #f8f8f8;
+  background: #ececec;
   color: #666;
 }
 
@@ -263,4 +267,13 @@
 .cancel-btn.unavailable:hover {
   background-color: #00000008;
   color: #999999;
+}
+
+.ended .cancel-btn:disabled,
+.ended .cancel-btn.past,
+.ended .cancel-btn.unavailable,
+.ended .cancel-btn:disabled:hover,
+.ended .cancel-btn.past:hover,
+.ended .cancel-btn.unavailable:hover {
+  background: #ececec;
 }
