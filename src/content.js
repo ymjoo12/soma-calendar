@@ -111,8 +111,7 @@ function createDayCell(date, today, lectures) {
   cell.className = `calendar-cell ${isToday ? "today-bg" : ""}`.trim();
 
   const dateElement = document.createElement("div");
-  dateElement.className =
-    `calendar-date ${isToday ? "today-text" : ""}`.trim();
+  dateElement.className = `calendar-date ${isToday ? "today-text" : ""}`.trim();
   dateElement.textContent = `${dayStr}${isToday ? " [오늘]" : ""}`;
   cell.appendChild(dateElement);
 
@@ -214,7 +213,8 @@ function generateGoogleCalendarURL(lecture) {
 async function updateCalendarElement() {
   const eventElems = document.querySelectorAll("div.calendar-lecture");
   for (let ev of eventElems) {
-    if (ev.querySelector('[data-role="loc"]').innerText !== "장소 로딩중..") continue;
+    if (ev.querySelector('[data-role="loc"]').innerText !== "장소 로딩중..")
+      continue;
     const res = await fetch(ev.querySelector("a").href, {
       credentials: "include",
     });
