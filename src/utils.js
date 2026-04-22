@@ -91,6 +91,7 @@ function extractLectureDetailFromHTML(html) {
     );
   };
   const npeople = getTopValue("모집인원");
+  const approvedText = getTopValue("개설 승인");
   const appliedSummary =
     container
       .querySelector(".total-normal.mt50")
@@ -104,6 +105,7 @@ function extractLectureDetailFromHTML(html) {
     timeStr: getTopValue("강의날짜"),
     appliedCount,
     totalCount,
+    isApproved: approvedText ? approvedText === "OK" : null,
     applyId: cancelBtn ? cancelBtn.getAttribute("onclick").split("'")[3] : null,
   };
 }
