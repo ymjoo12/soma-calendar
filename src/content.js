@@ -138,16 +138,16 @@ function createPastButton(wrapper, startDate, today) {
   const cell = document.createElement("div");
   cell.className = "calendar-cell past-btn-cell";
 
-  const btn = document.createElement("button");
-  btn.className = "past-btn";
-  btn.textContent = "⬆ 이전 2주 보기";
+  const pastBtn = document.createElement("button");
+  pastBtn.className = "past-btn";
+  pastBtn.textContent = "⬆ 이전 2주 보기";
 
   const resetBtn = document.createElement("button");
   resetBtn.className = "past-btn";
-  resetBtn.textContent = "⭯ 이번주부터 보기";
+  resetBtn.textContent = "↩ 이번주부터 보기";
   resetBtn.hidden = true;
 
-  btn.addEventListener("click", () => {
+  pastBtn.addEventListener("click", () => {
     currentStart.setDate(currentStart.getDate() - 14);
     const insertBefore = cell.nextSibling;
     for (let i = 0; i < 14; i++) {
@@ -170,7 +170,7 @@ function createPastButton(wrapper, startDate, today) {
     resetBtn.hidden = true;
   });
 
-  cell.append(btn, resetBtn);
+  cell.append(pastBtn, resetBtn);
   return cell;
 }
 

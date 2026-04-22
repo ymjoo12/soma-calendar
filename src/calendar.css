@@ -82,11 +82,10 @@
   background: #ffe8e8;
 }
 
-/* Keep past lectures muted without making history hard to read. */
 .ended {
   background: #f8f8f8;
   color: #666;
-  opacity: 0.82;
+  opacity: 0.7; /* dimming amount */
 }
 
 .ended .text-title,
