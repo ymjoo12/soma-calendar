@@ -99,3 +99,4 @@ git clone https://github.com/ymjoo12/soma-calendar.git
 | [@lickelon](https://github.com/lickelon) | 멘토링 달력 팝업 정보 개선, 취소 버튼 기능 수정 | [#30](https://github.com/ymjoo12/soma-calendar/pull/30), [#36](https://github.com/ymjoo12/soma-calendar/pull/36) |
 | [@doorcs](https://github.com/doorcs) | 지나간 강의 회색 표시, 코드 포매팅, 레이아웃 변경 fallback 추가, 디자인 수정 | [#32](https://github.com/ymjoo12/soma-calendar/pull/32), [#33](https://github.com/ymjoo12/soma-calendar/pull/33), [#43](https://github.com/ymjoo12/soma-calendar/pull/43) |
 | [@twkim02](https://github.com/twkim02) | 캘린더 과거 2주 보기 기능 추가 | [#39](https://github.com/ymjoo12/soma-calendar/pull/39) |
+| [@gyuhochoime](https://github.com/gyuhochoime) | 팝업에 부산 소마 링크 추가 | [#45](https://github.com/ymjoo12/soma-calendar/pull/45) |
