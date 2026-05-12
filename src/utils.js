@@ -101,6 +101,7 @@ function extractLectureDetailFromHTML(html) {
   const totalCount = npeople?.match(/(\d+)/)?.[1] || null;
   return {
     loc: getTopValue("장소"),
+    mode: getTopValue("진행방식"),
     npeople,
     timeStr: getTopValue("강의날짜"),
     appliedCount,
