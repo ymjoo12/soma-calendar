@@ -1,6 +1,111 @@
 const lecturePopupDetailCache = new Map();
 const lecturePopupDetailRequests = new Map();
 
+// ── Online / Offline mode filter ─────────────────────────────────────────────
+
+const FILTER_STORAGE_KEY = "soma-mode-filter";
+
+function saveModeFilter(value) {
+  sessionStorage.setItem(FILTER_STORAGE_KEY, value);
+}
+
+function loadSavedModeFilter() {
+  return sessionStorage.getItem(FILTER_STORAGE_KEY) ?? "all";
+}
+
+let currentModeFilter = loadSavedModeFilter();
+const rowModeMap = new Map();
+let modeFilterLoading = false;
+
+function getListRows() {
+  return document.querySelectorAll(
+    "#listFrm > div.boardlist.mt50 > table > tbody > tr",
+  );
+}
+
+async function loadAllRowModes() {
+  const fetches = Array.from(getListRows()).map(async (row) => {
+    const link = row.querySelector('a[href*="mentoLec/view.do"]');
+    if (!link) return;
+    try {
+      const detail = await fetchCalendarPopupDetail(link.href);
+      rowModeMap.set(row, detail.mode ?? null);
+    } catch {
+      rowModeMap.set(row, null);
+    }
+  });
+  await Promise.all(fetches);
+}
+
+function applyModeFilter() {
+  for (const row of getListRows()) {
+    if (currentModeFilter === "all") {
+      row.style.display = "";
+      continue;
+    }
+    const mode = rowModeMap.get(row);
+    if (mode === undefined) {
+      row.style.display = "";
+      continue;
+    }
+    const isOnline = mode?.includes("온라인") ?? false;
+    row.style.display =
+      (currentModeFilter === "online") === isOnline ? "" : "none";
+  }
+}
+
+function insertModeFilterUI() {
+  const existingTabs = document.querySelector("ul.tabs-sort");
+  if (!existingTabs) return;
+
+  const modeTabsList = document.createElement("ul");
+  modeTabsList.className = "tabs-sort soma-mode-tabs";
+
+  for (const { text, value } of [
+    { text: "전체", value: "all" },
+    { text: "온라인", value: "online" },
+    { text: "오프라인", value: "offline" },
+  ]) {
+    const li = document.createElement("li");
+    li.dataset.modeFilter = value;
+    if (value === currentModeFilter) li.classList.add("active");
+
+    const a = document.createElement("a");
+    a.href = "javascript:void(0);";
+    a.textContent = text;
+
+    a.addEventListener("click", async () => {
+      if (modeFilterLoading) return;
+
+      modeTabsList
+        .querySelectorAll("li[data-mode-filter]")
+        .forEach((item) => item.classList.remove("active"));
+      li.classList.add("active");
+      currentModeFilter = value;
+      saveModeFilter(value);
+
+      if (value !== "all" && rowModeMap.size === 0) {
+        modeFilterLoading = true;
+        modeTabsList.style.opacity = "0.6";
+        modeTabsList.style.pointerEvents = "none";
+        await loadAllRowModes();
+        modeFilterLoading = false;
+        modeTabsList.style.opacity = "";
+        modeTabsList.style.pointerEvents = "";
+      }
+
+      applyModeFilter();
+    });
+
+    li.appendChild(a);
+    modeTabsList.appendChild(li);
+  }
+
+  existingTabs.after(modeTabsList);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // 달력 항목에서 팝업 조회에 필요한 요소를 추출
 function getCalendarPopupElements(item) {
   const trigger =
@@ -65,6 +170,7 @@ function renderCalendarPopupDetail(container, detail) {
     : detail.npeople || "정보 없음";
   const fields = [
     ["시간", detail.timeStr || "정보 없음"],
+    ["진행방식", detail.mode || "정보 없음"],
     ["장소", detail.loc || "정보 없음"],
     ["인원", peopleText],
   ];
@@ -235,6 +341,25 @@ function renderConflictLectures(popupElement, conflictingLectures) {
     lectureElement.append(titleRow, authorRow, timeRow);
     popupElement.appendChild(lectureElement);
   }
+}
+
+insertModeFilterUI();
+
+if (currentModeFilter !== "all") {
+  const modeTabsList = document.querySelector("ul.soma-mode-tabs");
+  modeFilterLoading = true;
+  if (modeTabsList) {
+    modeTabsList.style.opacity = "0.6";
+    modeTabsList.style.pointerEvents = "none";
+  }
+  loadAllRowModes().then(() => {
+    modeFilterLoading = false;
+    if (modeTabsList) {
+      modeTabsList.style.opacity = "";
+      modeTabsList.style.pointerEvents = "";
+    }
+    applyModeFilter();
+  });
 }
 
 getAllLectures().then((lectures) => {
