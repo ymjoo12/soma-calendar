@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "소마 멘토링 시간표",
-  "version": "26.5.11.0",
+  "version": "26.5.14.0",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -14,13 +14,31 @@
   },
   "content_scripts": [
     {
+      "matches": ["https://*.swmaestro.ai/*", "https://swmaestro.ai/*"],
+      "exclude_matches": [
+        "https://*.swmaestro.ai/sw/mypage/userAnswer/history.do*",
+        "https://swmaestro.ai/sw/mypage/userAnswer/history.do*",
+        "https://*.swmaestro.ai/busan/sw/mypage/userAnswer/history.do*",
+        "https://swmaestro.ai/busan/sw/mypage/userAnswer/history.do*",
+        "https://*.swmaestro.ai/sw/mypage/mentoLec/list.do?*",
+        "https://swmaestro.ai/sw/mypage/mentoLec/list.do?*",
+        "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*",
+        "https://swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*",
+        "https://*.swmaestro.ai/sw/mypage/mentoLec/view.do*",
+        "https://swmaestro.ai/sw/mypage/mentoLec/view.do*",
+        "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/view.do*",
+        "https://swmaestro.ai/busan/sw/mypage/mentoLec/view.do*"
+      ],
+      "js": ["src/cache.js"]
+    },
+    {
       "matches": [
         "https://*.swmaestro.ai/sw/mypage/userAnswer/history.do*",
         "https://swmaestro.ai/sw/mypage/userAnswer/history.do*",
         "https://*.swmaestro.ai/busan/sw/mypage/userAnswer/history.do*",
         "https://swmaestro.ai/busan/sw/mypage/userAnswer/history.do*"
       ],
-      "js": ["src/utils.js", "src/content.js"],
+      "js": ["src/cache.js", "src/utils.js", "src/content.js"],
       "css": ["src/calendar.css"]
     },
     {
@@ -30,7 +48,7 @@
         "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*",
         "https://swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*"
       ],
-      "js": ["src/utils.js", "src/lecture.js"],
+      "js": ["src/cache.js", "src/utils.js", "src/lecture.js"],
       "css": ["src/calendar.css"]
     },
     {
@@ -40,7 +58,7 @@
         "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/view.do*",
         "https://swmaestro.ai/busan/sw/mypage/mentoLec/view.do*"
       ],
-      "js": ["src/utils.js", "src/lecture-item.js"]
+      "js": ["src/cache.js", "src/utils.js", "src/lecture-item.js"]
     }
   ],
   "browser_specific_settings": {

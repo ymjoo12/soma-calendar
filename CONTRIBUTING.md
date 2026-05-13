@@ -10,6 +10,7 @@
 
 - 재현 경로 (어느 페이지에서 어떤 동작을 했는지)
 - 브라우저 종류와 버전 (Chrome/Firefox/기타)
+- 자신이 속한 센터 (서울센터/부산센터)
 - 확장 프로그램 버전 (`manifest.json`의 `version` 혹은 팝업 화면의 버전 표시)
 - 기대한 동작과 실제 동작
 - 가능하다면 스크린샷 또는 콘솔 에러 메시지
@@ -32,9 +33,12 @@
 3. 브라우저에 확장 프로그램을 로드합니다. 설치 방법은 [README.md의 수동 설치 방법](README.md#-수동-설치-방법)을 참고해주세요.
 
 4. 소마 홈페이지에 로그인한 뒤, 확장이 매칭하는 페이지에서 동작을 확인합니다.
-   - 접수 내역: `https://swmaestro.ai/sw/mypage/userAnswer/history.do?menuNo=200047`
-   - 멘토링/특강 목록: `https://swmaestro.ai/sw/mypage/mentoLec/list.do?...`
-   - 멘토링/특강 상세: `https://swmaestro.ai/sw/mypage/mentoLec/view.do?...`
+   - 서울센터 접수 내역: `https://swmaestro.ai/sw/mypage/userAnswer/history.do?menuNo=200047`
+   - 서울센터 멘토링/특강 목록: `https://swmaestro.ai/sw/mypage/mentoLec/list.do?...`
+   - 서울센터 멘토링/특강 상세: `https://swmaestro.ai/sw/mypage/mentoLec/view.do?...`
+   - 부산센터 접수 내역: `https://swmaestro.ai/busan/sw/mypage/userAnswer/history.do?menuNo=200047`
+   - 부산센터 멘토링/특강 목록: `https://swmaestro.ai/busan/sw/mypage/mentoLec/list.do?...`
+   - 부산센터 멘토링/특강 상세: `https://swmaestro.ai/busan/sw/mypage/mentoLec/view.do?...`
 
 ## 🌿 브랜치 & 커밋
 
@@ -63,6 +67,16 @@ UI가 바뀌거나 새 기능이 추가되는 PR은 **변경 전/후 스크린�
 - 애니메이션/인터랙션이 변경된 경우에는 짧은 GIF 혹은 mp4를 첨부해주셔도 됩니다.
 - 서로 다른 기기 픽셀 밀도에서 레이아웃이 깨지는 경우가 종종 있으므로, 가능하면 **기본 확대/축소 100%** 상태에서 캡처해주세요.
 
+## 🏫 센터별 동작 범위 명시
+
+서울센터와 부산센터는 URL prefix뿐 아니라 페이지 구조, DOM selector, API 요청/응답 형태가 다를 수 있습니다. PR 작성자는 본인이 직접 확인한 센터를 PR 본문에 명시해주세요.
+
+- 본인이 속한 센터에서만 검증했다면, 해당 기능은 기본적으로 그 센터 URL에서만 동작하도록 제한해주세요.
+- 서울센터와 부산센터에 공통 적용하려면 양쪽 센터 연수생의 직접 검증이 필요합니다.
+- 한 센터에서만 의미가 있는 필드나 UI는 다른 센터에 표시하지 말아주세요.
+- selector나 응답 형태를 해석할 때는 본인이 검증한 센터 기준인지, 양쪽 센터 공통으로 확인된 기준인지 PR 본문에 적어주세요.
+- 유지보수자는 공통 검증이 없는 기능을 특정 센터 전용으로 조정하거나, 추가 검증 전까지 main 반영을 보류할 수 있습니다.
+
 ## ⚡ 캘린더 로드 성능 확인 필수
 
 이 확장은 소마 홈페이지의 내부 페이지(`history.do`, `mentoLec/view.do` 등)를 `fetch`로 가져와 파싱하는 구조입니다. 네트워크 호출 수나 파싱 비용이 조금만 늘어도 캘린더 렌더 지연으로 직결되므로, 다음 항목을 반드시 확인하고 결과를 PR 본문에 남겨주세요.
@@ -81,6 +95,9 @@ PR을 올리시기 전에 아래 항목을 확인해주세요.
 
 - [ ] 로컬에서 Prettier 체크 통과 (`npx prettier@3 --check .`)
 - [ ] 접수 내역/목록/상세 페이지 중 영향 범위를 직접 확인
+- [ ] 본인이 검증한 센터(서울센터/부산센터)를 PR 본문에 명시
+- [ ] 양쪽 센터 공통 적용 기능이라면 서울센터와 부산센터에서 모두 검증
+- [ ] 한쪽 센터에서만 검증했다면 해당 센터 URL에서만 동작하도록 제한
 - [ ] UI/스타일 변경이 있다면 Before/After 스크린샷 첨부
 - [ ] `manifest.json`의 `version` 필드는 수정하지 않음
 
