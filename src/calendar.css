@@ -289,3 +289,14 @@ ul.tabs-sort li:not(.active) a:hover {
   color: #114c9d !important;
   opacity: 0.7;
 }
+
+.calendarPop a.close {
+  box-shadow: none !important;
+  margin-top: 10px !important;
+  margin-right: 8px !important;
+}
+
+.calendarPop a.close:hover {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow: none !important;
+}
