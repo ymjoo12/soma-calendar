@@ -27,14 +27,29 @@ document.getElementById("store-link").href = getStoreLink();
 
 const clearCacheButton = document.getElementById("clear-cache");
 const cacheStatus = document.getElementById("cache-status");
+const CACHE_CLEAR_HISTORY_URLS = [
+  "https://www.swmaestro.ai/sw/mypage/userAnswer/history.do?menuNo=200047",
+  "https://www.swmaestro.ai/busan/sw/mypage/userAnswer/history.do?menuNo=200047",
+];
+const CACHE_CLEAR_RETRY_COUNT = 20;
+const CACHE_CLEAR_RETRY_DELAY_MS = 250;
 
 function setCacheStatus(text, color = "#666") {
   cacheStatus.textContent = text;
   cacheStatus.style.color = color;
 }
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function clearCacheInTab(tab) {
   return new Promise((resolve) => {
+    if (!tab?.id) {
+      resolve(false);
+      return;
+    }
+
     chrome.tabs.sendMessage(
       tab.id,
       { type: "SOMA_CLEAR_CACHE" },
@@ -49,20 +64,91 @@ function clearCacheInTab(tab) {
   });
 }
 
-clearCacheButton.addEventListener("click", () => {
+function queryTabs(queryInfo) {
+  return new Promise((resolve) => {
+    chrome.tabs.query(queryInfo, (tabs) => {
+      resolve(tabs || []);
+    });
+  });
+}
+
+function createTab(createProperties) {
+  return new Promise((resolve) => {
+    chrome.tabs.create(createProperties, (tab) => {
+      if (chrome.runtime.lastError) {
+        resolve(null);
+        return;
+      }
+      resolve(tab);
+    });
+  });
+}
+
+function updateTab(tabId, updateProperties) {
+  return new Promise((resolve) => {
+    chrome.tabs.update(tabId, updateProperties, (tab) => {
+      if (chrome.runtime.lastError) {
+        resolve(null);
+        return;
+      }
+      resolve(tab);
+    });
+  });
+}
+
+async function clearCacheInOpenTabs() {
+  const tabs = await queryTabs({});
+  const results = await Promise.all(tabs.map(clearCacheInTab));
+  return results.filter(Boolean).length;
+}
+
+async function waitAndClearCacheInTab(tab) {
+  for (let count = 0; count < CACHE_CLEAR_RETRY_COUNT; count++) {
+    if (await clearCacheInTab(tab)) {
+      return true;
+    }
+    await delay(CACHE_CLEAR_RETRY_DELAY_MS);
+  }
+  return false;
+}
+
+async function clearCacheInOpenedHistoryTab() {
+  let tab = await createTab({
+    url: CACHE_CLEAR_HISTORY_URLS[0],
+    active: false,
+  });
+  if (!tab?.id) {
+    return false;
+  }
+
+  if (await waitAndClearCacheInTab(tab)) {
+    return true;
+  }
+
+  tab = await updateTab(tab.id, { url: CACHE_CLEAR_HISTORY_URLS[1] });
+  return waitAndClearCacheInTab(tab);
+}
+
+clearCacheButton.addEventListener("click", async () => {
   clearCacheButton.disabled = true;
   setCacheStatus("캐시 초기화 중...");
 
-  chrome.tabs.query({}, async (tabs) => {
-    const results = await Promise.all(tabs.map(clearCacheInTab));
-    const clearedCount = results.filter(Boolean).length;
+  try {
+    const clearedCount = await clearCacheInOpenTabs();
     if (clearedCount > 0) {
       setCacheStatus("캐시를 초기화했습니다.");
     } else {
-      setCacheStatus("소마 페이지를 연 뒤 다시 눌러주세요.", "red");
+      setCacheStatus("접수 내역 탭을 열어 캐시 초기화 중...");
+      const openedTabCleared = await clearCacheInOpenedHistoryTab();
+      if (openedTabCleared) {
+        setCacheStatus("접수 내역 탭을 열어 캐시를 초기화했습니다.");
+      } else {
+        setCacheStatus("접수 내역 탭에서 캐시를 초기화하지 못했습니다.", "red");
+      }
     }
+  } finally {
     clearCacheButton.disabled = false;
-  });
+  }
 });
 
 const localVersion = chrome.runtime.getManifest().version;
