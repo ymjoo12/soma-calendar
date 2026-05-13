@@ -25,6 +25,46 @@ function getStoreLink() {
 
 document.getElementById("store-link").href = getStoreLink();
 
+const clearCacheButton = document.getElementById("clear-cache");
+const cacheStatus = document.getElementById("cache-status");
+
+function setCacheStatus(text, color = "#666") {
+  cacheStatus.textContent = text;
+  cacheStatus.style.color = color;
+}
+
+function clearCacheInTab(tab) {
+  return new Promise((resolve) => {
+    chrome.tabs.sendMessage(
+      tab.id,
+      { type: "SOMA_CLEAR_CACHE" },
+      (response) => {
+        if (chrome.runtime.lastError || !response?.ok) {
+          resolve(false);
+          return;
+        }
+        resolve(true);
+      },
+    );
+  });
+}
+
+clearCacheButton.addEventListener("click", () => {
+  clearCacheButton.disabled = true;
+  setCacheStatus("캐시 초기화 중...");
+
+  chrome.tabs.query({}, async (tabs) => {
+    const results = await Promise.all(tabs.map(clearCacheInTab));
+    const clearedCount = results.filter(Boolean).length;
+    if (clearedCount > 0) {
+      setCacheStatus("캐시를 초기화했습니다.");
+    } else {
+      setCacheStatus("소마 페이지를 연 뒤 다시 눌러주세요.", "red");
+    }
+    clearCacheButton.disabled = false;
+  });
+});
+
 const localVersion = chrome.runtime.getManifest().version;
 
 fetch("https://api.github.com/repos/ymjoo12/soma-calendar/releases/latest")
@@ -37,6 +77,11 @@ fetch("https://api.github.com/repos/ymjoo12/soma-calendar/releases/latest")
     } else {
       el.textContent = `🔁 업데이트 가능: ${localVersion} → ${latest}`;
       el.style.color = "red";
+      const isChrome = !/Firefox/i.test(navigator.userAgent);
+      if (isChrome) {
+        const hint = document.getElementById("update-hint");
+        if (hint) hint.style.display = "block";
+      }
     }
   })
   .catch(() => {

@@ -1,21 +1,18 @@
-const lecturePopupDetailCache = new Map();
-const lecturePopupDetailRequests = new Map();
+const FILTER_STORAGE_KEY = "soma-online-filter";
 
-// ── Online / Offline mode filter ─────────────────────────────────────────────
-
-const FILTER_STORAGE_KEY = "soma-mode-filter";
-
-function saveModeFilter(value) {
+// Online / offline filter
+function saveOnlineFilter(value) {
   sessionStorage.setItem(FILTER_STORAGE_KEY, value);
 }
 
-function loadSavedModeFilter() {
+function loadSavedOnlineFilter() {
   return sessionStorage.getItem(FILTER_STORAGE_KEY) ?? "all";
 }
 
-let currentModeFilter = loadSavedModeFilter();
-const rowModeMap = new Map();
-let modeFilterLoading = false;
+let currentOnlineFilter = loadSavedOnlineFilter();
+const rowIsOnlineMap = new Map();
+let rowOnlineStatusPromise = null;
+let onlineFilterUpdateQueued = false;
 
 function getListRows() {
   return document.querySelectorAll(
@@ -23,43 +20,100 @@ function getListRows() {
   );
 }
 
-async function loadAllRowModes() {
-  const fetches = Array.from(getListRows()).map(async (row) => {
-    const link = row.querySelector('a[href*="mentoLec/view.do"]');
-    if (!link) return;
-    try {
-      const detail = await fetchCalendarPopupDetail(link.href);
-      rowModeMap.set(row, detail.mode ?? null);
-    } catch {
-      rowModeMap.set(row, null);
-    }
-  });
-  await Promise.all(fetches);
+function getListRowLecture(row) {
+  const link = row.querySelector('a[href*="mentoLec/view.do"]');
+  const dateTimeText = row
+    .querySelector("td:nth-child(4)")
+    ?.innerText.replace(/\u00a0/g, " ");
+  const [dateStr, timeRangeStr] =
+    dateTimeText
+      ?.split("\n")
+      .map((text) => text.trim())
+      .filter(Boolean) ?? [];
+  const title = row.querySelector(".tit")?.innerText.trim();
+  if (!link || !dateStr || !timeRangeStr) {
+    return null;
+  }
+
+  return {
+    url: setPageIndexToOne(link.href),
+    title,
+    dateStr,
+    timeRangeStr,
+    lectureId: getLectureId(link.href),
+  };
 }
 
-function applyModeFilter() {
+function updateLectureListPageCache() {
   for (const row of getListRows()) {
-    if (currentModeFilter === "all") {
-      row.style.display = "";
-      continue;
+    const lecture = getListRowLecture(row);
+    if (lecture) {
+      updateLectureCache(lecture);
     }
-    const mode = rowModeMap.get(row);
-    if (mode === undefined) {
-      row.style.display = "";
-      continue;
-    }
-    const isOnline = mode?.includes("온라인") ?? false;
-    row.style.display =
-      (currentModeFilter === "online") === isOnline ? "" : "none";
   }
 }
 
-function insertModeFilterUI() {
+async function loadAllRowOnlineStatuses() {
+  if (rowOnlineStatusPromise) {
+    return rowOnlineStatusPromise;
+  }
+
+  rowOnlineStatusPromise = mapWithConcurrency(
+    Array.from(getListRows()),
+    LECTURE_DETAIL_CONCURRENCY_LIMIT,
+    async (row) => {
+      const link = row.querySelector('a[href*="mentoLec/view.do"]');
+      if (!link) return;
+
+      try {
+        const detail = await getLectureDetail(link.href, {
+          requiredFields: ["isOnline"],
+        });
+        rowIsOnlineMap.set(row, detail?.isOnline ?? null);
+      } catch (error) {
+        console.error(error);
+        rowIsOnlineMap.set(row, null);
+      }
+      queueApplyOnlineFilter();
+    },
+  );
+  return rowOnlineStatusPromise;
+}
+
+function queueApplyOnlineFilter() {
+  if (currentOnlineFilter === "all" || onlineFilterUpdateQueued) {
+    return;
+  }
+
+  onlineFilterUpdateQueued = true;
+  requestAnimationFrame(() => {
+    onlineFilterUpdateQueued = false;
+    applyOnlineFilter();
+  });
+}
+
+function applyOnlineFilter() {
+  for (const row of getListRows()) {
+    if (currentOnlineFilter === "all") {
+      row.style.display = "";
+      continue;
+    }
+    const isOnline = rowIsOnlineMap.get(row);
+    if (isOnline === undefined || isOnline === null) {
+      row.style.display = "";
+      continue;
+    }
+    row.style.display =
+      (currentOnlineFilter === "online") === isOnline ? "" : "none";
+  }
+}
+
+function insertOnlineFilterUI() {
   const existingTabs = document.querySelector("ul.tabs-sort");
   if (!existingTabs) return;
 
-  const modeTabsList = document.createElement("ul");
-  modeTabsList.className = "tabs-sort soma-mode-tabs";
+  const onlineTabsList = document.createElement("ul");
+  onlineTabsList.className = "tabs-sort soma-online-tabs";
 
   for (const { text, value } of [
     { text: "전체", value: "all" },
@@ -67,46 +121,38 @@ function insertModeFilterUI() {
     { text: "오프라인", value: "offline" },
   ]) {
     const li = document.createElement("li");
-    li.dataset.modeFilter = value;
-    if (value === currentModeFilter) li.classList.add("active");
+    li.dataset.onlineFilter = value;
+    if (value === currentOnlineFilter) li.classList.add("active");
 
     const a = document.createElement("a");
     a.href = "javascript:void(0);";
     a.textContent = text;
 
-    a.addEventListener("click", async () => {
-      if (modeFilterLoading) return;
-
-      modeTabsList
-        .querySelectorAll("li[data-mode-filter]")
+    a.addEventListener("click", () => {
+      onlineTabsList
+        .querySelectorAll("li[data-online-filter]")
         .forEach((item) => item.classList.remove("active"));
       li.classList.add("active");
-      currentModeFilter = value;
-      saveModeFilter(value);
+      currentOnlineFilter = value;
+      saveOnlineFilter(value);
 
-      if (value !== "all" && rowModeMap.size === 0) {
-        modeFilterLoading = true;
-        modeTabsList.style.opacity = "0.6";
-        modeTabsList.style.pointerEvents = "none";
-        await loadAllRowModes();
-        modeFilterLoading = false;
-        modeTabsList.style.opacity = "";
-        modeTabsList.style.pointerEvents = "";
+      if (value !== "all") {
+        loadAllRowOnlineStatuses().catch((error) => {
+          console.error(error);
+        });
       }
 
-      applyModeFilter();
+      applyOnlineFilter();
     });
 
     li.appendChild(a);
-    modeTabsList.appendChild(li);
+    onlineTabsList.appendChild(li);
   }
 
-  existingTabs.after(modeTabsList);
+  existingTabs.after(onlineTabsList);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
-// 달력 항목에서 팝업 조회에 필요한 요소를 추출
+// Calendar popup enrichment
 function getCalendarPopupElements(item) {
   const trigger =
     item.firstElementChild?.tagName === "A"
@@ -120,7 +166,6 @@ function getCalendarPopupElements(item) {
   return { trigger, popup, detailLink };
 }
 
-// 사이트 기본 팝업이 실제로 열린 상태인지 판별
 function isCalendarPopupVisible(popup) {
   if (!popup) {
     return false;
@@ -134,7 +179,6 @@ function isCalendarPopupVisible(popup) {
   );
 }
 
-// 팝업 상세 정보를 그릴 컨테이너를 보장
 function getCalendarPopupDetailContainer(popup) {
   const list = popup.querySelector(".calendarPop__list") || popup;
   let container = list.querySelector(".calendar-pop-extra");
@@ -148,7 +192,6 @@ function getCalendarPopupDetailContainer(popup) {
   return container;
 }
 
-// 불러온 상세 정보를 팝업 하단에 표시
 function renderCalendarPopupDetail(container, detail) {
   container.className = "calendar-pop-extra";
   container.replaceChildren();
@@ -165,13 +208,15 @@ function renderCalendarPopupDetail(container, detail) {
     return;
   }
 
-  const peopleText = detail.totalCount
+  const hasPeopleCounts =
+    /^\d+$/.test(detail.appliedCount) && /^\d+$/.test(detail.totalCount);
+  const peopleText = hasPeopleCounts
     ? `${detail.appliedCount ?? 0}/${detail.totalCount}`
-    : detail.npeople || "정보 없음";
+    : detail.capacityText;
   const fields = [
-    ["시간", detail.timeStr || "정보 없음"],
-    ["진행방식", detail.mode || "정보 없음"],
-    ["장소", detail.loc || "정보 없음"],
+    ["시간", detail.timeStr],
+    ["진행방식", detail.deliveryMethod],
+    ["장소", detail.location],
     ["인원", peopleText],
   ];
 
@@ -193,83 +238,72 @@ function renderCalendarPopupDetail(container, detail) {
   }
 }
 
-// 상세 페이지를 조회하고 결과를 캐시
-async function fetchCalendarPopupDetail(url) {
-  if (lecturePopupDetailCache.has(url)) {
-    return lecturePopupDetailCache.get(url);
-  }
-
-  if (lecturePopupDetailRequests.has(url)) {
-    return lecturePopupDetailRequests.get(url);
-  }
-
-  const request = fetch(url, { credentials: "include" })
-    .then((res) => {
-      if (!res.ok) {
-        throw new Error(`Failed to fetch popup detail: ${res.status}`);
-      }
-
-      return res.text();
-    })
-    .then((html) => {
-      const detail = extractLectureDetailFromHTML(html);
-      lecturePopupDetailCache.set(url, detail);
-      return detail;
-    })
-    .finally(() => {
-      lecturePopupDetailRequests.delete(url);
-    });
-
-  lecturePopupDetailRequests.set(url, request);
-  return request;
-}
-
-// 현재 열린 팝업에 상세 정보를 채워 넣기
-async function enrichCalendarPopup(item) {
+async function enrichCalendarPopup(item, token) {
   const { popup, detailLink } = getCalendarPopupElements(item);
+
+  if (token && item.dataset.somaPopupEnrichmentToken !== token) {
+    return;
+  }
 
   if (!popup || !detailLink || !isCalendarPopupVisible(popup)) {
     return;
   }
 
   const container = getCalendarPopupDetailContainer(popup);
-  const cachedDetail = lecturePopupDetailCache.get(detailLink.href);
 
-  if (cachedDetail) {
-    renderCalendarPopupDetail(container, cachedDetail);
-    return;
-  }
-
-  if (container.dataset.state === "loading") {
+  if (
+    container.dataset.loadingToken === token ||
+    container.dataset.loadedToken === token
+  ) {
     return;
   }
 
   container.dataset.state = "loading";
+  container.dataset.loadingToken = token;
   renderCalendarPopupDetail(container, { loading: true });
 
   try {
-    const detail = await fetchCalendarPopupDetail(detailLink.href);
+    const detail = await getLectureDetail(detailLink.href, {
+      forceRefresh: true,
+      requiredFields: [
+        "location",
+        "deliveryMethod",
+        "timeStr",
+        "capacityText",
+        "totalCount",
+        "appliedCount",
+      ],
+    });
+    if (token && item.dataset.somaPopupEnrichmentToken !== token) {
+      return;
+    }
     container.dataset.state = "loaded";
+    container.dataset.loadedToken = token;
     renderCalendarPopupDetail(container, detail);
   } catch (error) {
     container.dataset.state = "error";
     renderCalendarPopupDetail(container, { error: true });
     console.error(error);
+  } finally {
+    if (container.dataset.loadingToken === token) {
+      delete container.dataset.loadingToken;
+    }
   }
 }
 
-// 팝업 열림 애니메이션 타이밍을 고려해 여러 번 재시도
+// Native popup visibility changes after its click animation starts.
 function scheduleCalendarPopupEnrichment(item) {
+  const token = `${Date.now()}-${Math.random()}`;
+  item.dataset.somaPopupEnrichmentToken = token;
   const retryDelays = [0, 100, 300, 700];
 
   for (const delay of retryDelays) {
     window.setTimeout(() => {
-      enrichCalendarPopup(item);
+      enrichCalendarPopup(item, token);
     }, delay);
   }
 }
 
-// 달력 팝업 열림을 감지해 상세 정보 로딩을 연결
 function observeCalendarPopups() {
   const calendarItems = document.querySelectorAll("li.category");
 
@@ -343,23 +377,11 @@ function renderConflictLectures(popupElement, conflictingLectures) {
   }
 }
 
-insertModeFilterUI();
+insertOnlineFilterUI();
+updateLectureListPageCache();
 
-if (currentModeFilter !== "all") {
-  const modeTabsList = document.querySelector("ul.soma-mode-tabs");
-  modeFilterLoading = true;
-  if (modeTabsList) {
-    modeTabsList.style.opacity = "0.6";
-    modeTabsList.style.pointerEvents = "none";
-  }
-  loadAllRowModes().then(() => {
-    modeFilterLoading = false;
-    if (modeTabsList) {
-      modeTabsList.style.opacity = "";
-      modeTabsList.style.pointerEvents = "";
-    }
-    applyModeFilter();
-  });
+if (currentOnlineFilter !== "all") {
+  applyOnlineFilter();
 }
 
 getAllLectures().then((lectures) => {
@@ -368,7 +390,6 @@ getAllLectures().then((lectures) => {
     "#listFrm > div.boardlist.mt50 > table > tbody > tr > td:nth-child(4)",
   );
 
-  // 팝업 요소 생성
   const popupElement = document.createElement("div");
   popupElement.className = "overlap-popup";
   document.body.appendChild(popupElement);
@@ -384,7 +405,6 @@ getAllLectures().then((lectures) => {
     let hasConflict = false;
     let conflictingLectures = [];
 
-    // 현재 멘토링 정보 가져오기
     const lectureRow = lectureDates[i].parentElement;
 
     for (let j = 0; j < targetList.length; j++) {
@@ -398,7 +418,6 @@ getAllLectures().then((lectures) => {
         continue;
       }
 
-      // 자기 자신과의 비교는 건너뛰기
       const conflictLecture = lectures.find(
         (lec) => lec.dateStr === datePart && lec.timeRangeStr === targetList[j],
       );
@@ -410,23 +429,18 @@ getAllLectures().then((lectures) => {
     }
 
     if (hasConflict) {
-      // 행에 conflict-item 클래스 추가
       lectureRow.classList.add("conflict-item");
       lectureRow.style.color = "red";
       lectureRow.querySelector(".tit").style.color = "red";
 
-      // 마우스 이벤트 추가
       lectureRow.addEventListener("mousemove", (e) => {
-        // 팝업 표시
         renderConflictLectures(popupElement, conflictingLectures);
         popupElement.style.display = "block";
 
-        // 마우스 커서 위치에 따라 팝업 위치 설정
-        const offset = 15; // 마우스 커서로부터의 간격
+        const offset = 15;
         popupElement.style.left = e.clientX + offset + "px";
         popupElement.style.top = e.clientY + offset + "px";
 
-        // 팝업이 화면 밖으로 나가는지 확인하고 조정
         const popupRect = popupElement.getBoundingClientRect();
         if (popupRect.right > window.innerWidth) {
           popupElement.style.left = e.clientX - popupRect.width - offset + "px";
@@ -442,7 +456,6 @@ getAllLectures().then((lectures) => {
     }
   }
 
-  // 스크롤 시 팝업 숨기기 (마우스 이동 없이 스크롤만 할 경우 팝업 제거)
   document.addEventListener("scroll", () => {
     if (popupElement.style.display === "block") {
       const activeItem = document.querySelector(".conflict-item:hover");

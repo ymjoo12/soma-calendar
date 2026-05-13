@@ -49,22 +49,22 @@ function createCalendarLectureElement(
   timeElement.style.fontSize = "smaller";
   timeElement.textContent = ev.timeRangeStr;
 
-  const locElement = document.createElement("div");
-  locElement.dataset.role = "loc";
-  locElement.style.fontSize = "smaller";
-  locElement.textContent = "장소 로딩중..";
+  const locationElement = document.createElement("div");
+  locationElement.dataset.role = "location";
+  locationElement.style.fontSize = "smaller";
+  locationElement.textContent = "장소 로딩중..";
 
-  const npeopleElement = document.createElement("div");
-  npeopleElement.dataset.role = "npeople";
-  npeopleElement.style.fontSize = "smaller";
-  npeopleElement.textContent = "인원수 로딩중..";
+  const peopleElement = document.createElement("div");
+  peopleElement.dataset.role = "people";
+  peopleElement.style.fontSize = "smaller";
+  peopleElement.textContent = "인원수 로딩중..";
 
   infoLink.append(
     titleElement,
     authorElement,
     timeElement,
-    locElement,
-    npeopleElement,
+    locationElement,
+    peopleElement,
   );
 
   const buttonGroup = document.createElement("div");
@@ -109,6 +109,7 @@ function createDayCell(date, today, lectures) {
 
   const cell = document.createElement("div");
   cell.className = `calendar-cell ${isToday ? "today-bg" : ""}`.trim();
+  cell.dataset.calendarDate = formatDateKey(date);
 
   const dateElement = document.createElement("div");
   dateElement.className = `calendar-date ${isToday ? "today-text" : ""}`.trim();
@@ -130,10 +131,42 @@ function createDayCell(date, today, lectures) {
   return cell;
 }
 
+function formatDateKey(date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function refreshVisibleCalendarCells(wrapper, today, changedLectures) {
+  const changedDateKeys = new Set(
+    changedLectures.map((lecture) => formatDateKey(lecture.startAt)),
+  );
+  const cells = wrapper.querySelectorAll(".calendar-cell[data-calendar-date]");
+  let refreshed = false;
+  for (const cell of cells) {
+    if (!changedDateKeys.has(cell.dataset.calendarDate)) {
+      continue;
+    }
+    const date = new Date(`${cell.dataset.calendarDate}T00:00:00`);
+    const newCell = createDayCell(date, today, lectures);
+    if (cell.dataset.pastCell) {
+      newCell.dataset.pastCell = cell.dataset.pastCell;
+    }
+    cell.replaceWith(newCell);
+    refreshed = true;
+  }
+  if (!refreshed) {
+    return;
+  }
+  updateCalendarElement().catch((error) => {
+    console.error(error);
+  });
+}
+
 function createPastButton(wrapper, startDate, today) {
   let currentStart = new Date(startDate);
   const initialStart = new Date(startDate);
-  const pastCells = [];
 
   const cell = document.createElement("div");
   cell.className = "calendar-cell past-btn-cell";
@@ -154,18 +187,21 @@ function createPastButton(wrapper, startDate, today) {
       const date = new Date(currentStart);
       date.setDate(currentStart.getDate() + i);
       const dayCell = createDayCell(date, today, lectures);
-      pastCells.push(dayCell);
+      dayCell.dataset.pastCell = "true";
       wrapper.insertBefore(dayCell, insertBefore);
     }
     resetBtn.hidden = false;
-    updateCalendarElement();
+    updateCalendarElement().catch((error) => {
+      console.error(error);
+    });
   });
 
   resetBtn.addEventListener("click", () => {
-    for (const pastCell of pastCells) {
+    for (const pastCell of wrapper.querySelectorAll(
+      '.calendar-cell[data-past-cell="true"]',
+    )) {
       pastCell.remove();
     }
-    pastCells.length = 0;
     currentStart = new Date(initialStart);
     resetBtn.hidden = true;
   });
@@ -181,7 +217,8 @@ async function generateCalendarElement() {
   const wrapper = document.createElement("div");
   wrapper.id = "history-calendar";
 
-  lectures = await getAllLectures();
+  const calendarLectures = await getCalendarLectures(startDate);
+  lectures = calendarLectures.lectures;
 
   wrapper.appendChild(createPastButton(wrapper, startDate, today));
 
@@ -191,107 +228,148 @@ async function generateCalendarElement() {
     wrapper.appendChild(createDayCell(date, today, lectures));
   }
 
+  if (calendarLectures.loadPastLectures) {
+    calendarLectures
+      .loadPastLectures((pageLectures) => {
+        lectures = mergeLectures(lectures, pageLectures);
+        refreshVisibleCalendarCells(wrapper, today, pageLectures);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+  }
+
   return wrapper;
 }
 
 async function main() {
-  let target =
+  // The site uses different tab counts on Seoul and Busan history pages.
+  const target =
     document.querySelector("#contentsList > div > div > ul.tabs-st1.col2") ||
-    document.querySelector("#contentsList > div > div > ul.tabs-st1.col3"); // 셀렉터 fallback 옵션 추가
+    document.querySelector("#contentsList > div > div > ul.tabs-st1.col3");
 
-  let newElement = await generateCalendarElement();
+  const newElement = await generateCalendarElement();
   target.after(newElement);
 }
 
-// 구글 캘린더 이벤트 URL 생성 함수
 function generateGoogleCalendarURL(lecture) {
-  // URL 인코딩 함수
   const encode = (str) => encodeURIComponent(str).replace(/%20/g, "+");
-
-  // 구글 캘린더 기본 URL
   const baseUrl = "https://calendar.google.com/calendar/render?action=TEMPLATE";
-
-  // 제목 추가
   const title = `&text=${encode(lecture.title)}`;
-
-  // 시작 및 종료 시간 추가 (ISO 형식으로 변환)
+  // Google Calendar expects compact UTC timestamps.
   const startTime = lecture.startAt.toISOString().replace(/-|:|\.\d+/g, "");
   const endTime = lecture.endAt.toISOString().replace(/-|:|\.\d+/g, "");
   const dates = `&dates=${startTime}/${endTime}`;
-
-  // 위치 추가
-  const location = lecture.loc ? `&location=${encode(lecture.loc)}` : "";
-
-  // 설명 추가 (멘토 정보와 URL 포함)
+  const locationParam = lecture.location
+    ? `&location=${encode(lecture.location)}`
+    : "";
   const description = `&details=${encode(`멘토: ${lecture.author}\n${lecture.url}`)}`;
 
-  // 완성된 URL 반환
-  return `${baseUrl}${title}${dates}${location}${description}`;
+  return `${baseUrl}${title}${dates}${locationParam}${description}`;
 }
 
-async function updateCalendarElement() {
-  const eventElems = document.querySelectorAll("div.calendar-lecture");
-  for (let ev of eventElems) {
-    if (ev.querySelector('[data-role="loc"]').innerText !== "장소 로딩중..")
-      continue;
-    const res = await fetch(ev.querySelector("a").href, {
-      credentials: "include",
-    });
-    const html = await res.text();
-    const eventDetails = extractLectureDetailFromHTML(html);
-    const { loc, npeople, appliedCount, totalCount, isApproved } = eventDetails;
-    let lecture = lectures.find(
-      (lec) => lec.url === ev.querySelector("a").href,
-    );
-    lecture.loc = loc;
-    lecture.npeople = npeople;
-    if (isApproved !== null) {
-      lecture.isApproved = isApproved;
-    }
-    let locElem = ev.querySelector('[data-role="loc"]');
-    locElem.innerText = loc;
-    let npeopleElem = ev.querySelector('[data-role="npeople"]');
-    const hasPeopleCounts =
-      /^\d+$/.test(appliedCount) && /^\d+$/.test(totalCount);
-    const peopleText = hasPeopleCounts
-      ? `${appliedCount}명 / ${totalCount}명`
-      : npeople;
-    npeopleElem.innerText =
-      peopleText + (lecture.isApproved ? " [개설 확정]" : " [미승인]");
-    if (!lecture.isApproved && !ev.classList.contains("ended")) {
-      // 가독성을 위해 이미 지나간 강의는 미승인 글자색 강조 X
-      npeopleElem.style.color = "red";
-    }
+function renderCalendarLectureDetail(ev, lecture, detail) {
+  const { location, capacityText, appliedCount, totalCount, isApproved } =
+    detail;
+  lecture.location = location;
+  if (isApproved !== undefined && isApproved !== null) {
+    lecture.isApproved = isApproved;
+  }
 
-    // ICS 내보내기 버튼 이벤트 리스너
-    let exportBtn = ev.querySelector(".export-btn");
-    exportBtn.addEventListener("click", (e) => {
-      const icsContent = generateICS(lecture);
-      const blob = new Blob([icsContent], { type: "text/calendar" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `${lecture.title.replace(/\s+/g, "_")}.ics`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    });
+  const locationElem = ev.querySelector('[data-role="location"]');
+  locationElem.innerText = location;
+  const peopleElem = ev.querySelector('[data-role="people"]');
+  const hasPeopleCounts =
+    /^\d+$/.test(appliedCount) && /^\d+$/.test(totalCount);
+  const peopleText = hasPeopleCounts
+    ? `${appliedCount}명 / ${totalCount}명`
+    : capacityText;
+  peopleElem.innerText =
+    peopleText + (lecture.isApproved ? " [개설 확정]" : " [미승인]");
+  if (!lecture.isApproved && !ev.classList.contains("ended")) {
+    // Keep past lectures visually muted even when approval is missing.
+    peopleElem.style.color = "red";
+  }
+}
 
-    // 구글 캘린더 버튼 이벤트 리스너
-    let gcalBtn = ev.querySelector(".gcal-btn");
-    gcalBtn.addEventListener("click", (e) => {
-      const googleCalendarURL = generateGoogleCalendarURL(lecture);
-      window.open(googleCalendarURL, "_blank");
-    });
+function attachCalendarLectureActions(ev, lecture) {
+  if (ev.dataset.actionsAttached === "true") {
+    return;
+  }
 
-    // 취소 버튼 이벤트 리스너
-    let cancelBtn = ev.querySelector(".cancel-btn");
-    if (cancelBtn.disabled || lecture.startAt < new Date()) {
-      continue;
-    }
-    cancelBtn.addEventListener("click", (e) => {
+  const exportBtn = ev.querySelector(".export-btn");
+  exportBtn.addEventListener("click", () => {
+    const icsContent = generateICS(lecture);
+    const blob = new Blob([icsContent], { type: "text/calendar" });
+    const downloadLink = document.createElement("a");
+    downloadLink.href = URL.createObjectURL(blob);
+    downloadLink.download = `${lecture.title.replace(/\s+/g, "_")}.ics`;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+  });
+
+  const gcalBtn = ev.querySelector(".gcal-btn");
+  gcalBtn.addEventListener("click", () => {
+    const googleCalendarURL = generateGoogleCalendarURL(lecture);
+    window.open(googleCalendarURL, "_blank");
+  });
+
+  const cancelBtn = ev.querySelector(".cancel-btn");
+  if (!cancelBtn.disabled && lecture.startAt >= new Date()) {
+    cancelBtn.addEventListener("click", () => {
       cancelApply(lecture.cancelId, lecture.lectureId, lecture.cancelGubun);
     });
   }
+
+  ev.dataset.actionsAttached = "true";
+}
+
+async function updateCalendarLectureElement(ev) {
+  const link = ev.querySelector("a");
+  const lecture = lectures.find((lec) => lec.url === link?.href);
+  if (!link || !lecture) {
+    return;
+  }
+
+  attachCalendarLectureActions(ev, lecture);
+
+  try {
+    if (isBeforeCurrentWeek(lecture)) {
+      const eventDetails = await getLectureDetail(link.href, {
+        requiredFields: ["location", "capacityText"],
+      });
+      renderCalendarLectureDetail(ev, lecture, eventDetails);
+      return;
+    }
+
+    const eventDetails = await getLectureDetail(link.href, {
+      requiredFields: [
+        "location",
+        "capacityText",
+        "totalCount",
+        "appliedCount",
+        "isApproved",
+      ],
+    });
+    renderCalendarLectureDetail(ev, lecture, eventDetails);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+async function updateCalendarElement() {
+  const eventElems = Array.from(
+    document.querySelectorAll("div.calendar-lecture"),
+  ).filter(
+    (ev) =>
+      ev.querySelector('[data-role="location"]')?.innerText === "장소 로딩중..",
+  );
+  await mapWithConcurrency(
+    eventElems,
+    LECTURE_DETAIL_CONCURRENCY_LIMIT,
+    updateCalendarLectureElement,
+  );
 }
 
 function generateICS(lecture) {
@@ -313,7 +391,7 @@ function generateICS(lecture) {
   const end = toICSDate(lecture.endAt);
   const title = lecture.title.replace(/\n/g, " ");
   const description = `멘토: ${lecture.author}`;
-  const location = lecture.loc;
+  const location = lecture.location;
   const url = lecture.url;
 
   return `BEGIN:VCALENDAR
@@ -339,7 +417,7 @@ END:VCALENDAR`.replace(/\n/g, "\r\n");
 
 main()
   .then(() => {
-    updateCalendarElement();
+    return updateCalendarElement();
   })
   .catch((err) => {
     console.error(err);

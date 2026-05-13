@@ -20,7 +20,7 @@
         "https://*.swmaestro.ai/busan/sw/mypage/userAnswer/history.do*",
         "https://swmaestro.ai/busan/sw/mypage/userAnswer/history.do*"
       ],
-      "js": ["src/utils.js", "src/content.js"],
+      "js": ["src/cache.js", "src/utils.js", "src/content.js"],
       "css": ["src/calendar.css"]
     },
     {
@@ -30,7 +30,7 @@
         "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*",
         "https://swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*"
       ],
-      "js": ["src/utils.js", "src/lecture.js"],
+      "js": ["src/cache.js", "src/utils.js", "src/lecture.js"],
       "css": ["src/calendar.css"]
     },
     {
@@ -40,7 +40,7 @@
         "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/view.do*",
         "https://swmaestro.ai/busan/sw/mypage/mentoLec/view.do*"
       ],
-      "js": ["src/utils.js", "src/lecture-item.js"]
+      "js": ["src/cache.js", "src/utils.js", "src/lecture-item.js"]
     }
   ],
   "browser_specific_settings": {

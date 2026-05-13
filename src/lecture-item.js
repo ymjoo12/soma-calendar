@@ -10,7 +10,7 @@ getAllLectures().then((lectures) => {
   const timeStr = document.querySelector(
     " div.top > div:nth-child(3) > div:nth-child(2) > div.c",
   ).innerText;
-  let [datePart, timePart] = timeStr.split(/\s{2,}/); // 공백 2개 이상 기준으로 나눔
+  let [datePart, timePart] = timeStr.split(/\s{2,}/);
   const [startTime, endTime] = timePart.replace(/시/g, "").split(" ~ ");
 
   datePart = datePart.replaceAll(".", "-");
