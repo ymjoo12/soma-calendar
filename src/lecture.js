@@ -1,6 +1,3 @@
-const lecturePopupDetailCache = new Map();
-const lecturePopupDetailRequests = new Map();
-
 // ── Online / Offline mode filter ─────────────────────────────────────────────
 
 const FILTER_STORAGE_KEY = "soma-mode-filter";
@@ -24,17 +21,18 @@ function getListRows() {
 }
 
 async function loadAllRowModes() {
-  const fetches = Array.from(getListRows()).map(async (row) => {
+  const rows = Array.from(getListRows()).filter((row) =>
+    row.querySelector('a[href*="mentoLec/view.do"]'),
+  );
+  await withConcurrency(rows, 5, async (row) => {
     const link = row.querySelector('a[href*="mentoLec/view.do"]');
-    if (!link) return;
     try {
-      const detail = await fetchCalendarPopupDetail(link.href);
+      const detail = await getLectureDetail(link.href);
       rowModeMap.set(row, detail.mode ?? null);
     } catch {
       rowModeMap.set(row, null);
     }
   });
-  await Promise.all(fetches);
 }
 
 function applyModeFilter() {
@@ -193,35 +191,8 @@ function renderCalendarPopupDetail(container, detail) {
   }
 }
 
-// 상세 페이지를 조회하고 결과를 캐시
-async function fetchCalendarPopupDetail(url) {
-  if (lecturePopupDetailCache.has(url)) {
-    return lecturePopupDetailCache.get(url);
-  }
-
-  if (lecturePopupDetailRequests.has(url)) {
-    return lecturePopupDetailRequests.get(url);
-  }
-
-  const request = fetch(url, { credentials: "include" })
-    .then((res) => {
-      if (!res.ok) {
-        throw new Error(`Failed to fetch popup detail: ${res.status}`);
-      }
-
-      return res.text();
-    })
-    .then((html) => {
-      const detail = extractLectureDetailFromHTML(html);
-      lecturePopupDetailCache.set(url, detail);
-      return detail;
-    })
-    .finally(() => {
-      lecturePopupDetailRequests.delete(url);
-    });
-
-  lecturePopupDetailRequests.set(url, request);
-  return request;
+function fetchCalendarPopupDetail(url) {
+  return getLectureDetail(url);
 }
 
 // 현재 열린 팝업에 상세 정보를 채워 넣기
@@ -233,7 +204,7 @@ async function enrichCalendarPopup(item) {
   }
 
   const container = getCalendarPopupDetailContainer(popup);
-  const cachedDetail = lecturePopupDetailCache.get(detailLink.href);
+  const cachedDetail = detailMemCache.get(detailLink.href);
 
   if (cachedDetail) {
     renderCalendarPopupDetail(container, cachedDetail);

@@ -191,6 +191,62 @@ function getLectureId(url) {
   return qustnrSn;
 }
 
+const DETAIL_CACHE_PREFIX = "soma-detail-v1:";
+const STABLE_FIELDS = ["mode", "loc", "timeStr", "npeople", "totalCount"];
+const detailMemCache = new Map();
+const detailInflight = new Map();
+
+async function getLectureDetail(url) {
+  if (detailMemCache.has(url)) return detailMemCache.get(url);
+  if (detailInflight.has(url)) return detailInflight.get(url);
+
+  const sessionKey = DETAIL_CACHE_PREFIX + url;
+  try {
+    const raw = sessionStorage.getItem(sessionKey);
+    if (raw) {
+      const stable = JSON.parse(raw);
+      detailMemCache.set(url, stable);
+      return stable;
+    }
+  } catch {}
+
+  const promise = fetch(url, { credentials: "include" })
+    .then((res) => {
+      if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
+      return res.text();
+    })
+    .then((html) => {
+      const detail = extractLectureDetailFromHTML(html);
+      detailMemCache.set(url, detail);
+      const stable = Object.fromEntries(
+        STABLE_FIELDS.map((k) => [k, detail[k] ?? null]),
+      );
+      try {
+        sessionStorage.setItem(sessionKey, JSON.stringify(stable));
+      } catch {}
+      return detail;
+    })
+    .finally(() => detailInflight.delete(url));
+
+  detailInflight.set(url, promise);
+  return promise;
+}
+
+async function withConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, worker),
+  );
+  return results;
+}
+
 function cancelApply(cancelId, qustnrSn, gubun = "mentoLec") {
   if (!cancelId || !qustnrSn) {
     alert("취소할 수 없는 항목입니다.");
