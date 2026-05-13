@@ -31,8 +31,9 @@ const CACHE_CLEAR_HISTORY_URLS = [
   "https://www.swmaestro.ai/sw/mypage/userAnswer/history.do?menuNo=200047",
   "https://www.swmaestro.ai/busan/sw/mypage/userAnswer/history.do?menuNo=200047",
 ];
-const CACHE_CLEAR_RETRY_COUNT = 20;
+const CACHE_CLEAR_RETRY_COUNT = 12;
 const CACHE_CLEAR_RETRY_DELAY_MS = 250;
+const CACHE_CLEAR_MESSAGE_TIMEOUT_MS = 500;
 
 function setCacheStatus(text, color = "#666") {
   cacheStatus.textContent = text;
@@ -50,11 +51,22 @@ function clearCacheInTab(tab) {
       return;
     }
 
+    let resolved = false;
+    const timeoutId = setTimeout(() => {
+      if (resolved) return;
+      resolved = true;
+      resolve(false);
+    }, CACHE_CLEAR_MESSAGE_TIMEOUT_MS);
+
     chrome.tabs.sendMessage(
       tab.id,
       { type: "SOMA_CLEAR_CACHE" },
       (response) => {
-        if (chrome.runtime.lastError || !response?.ok) {
+        const lastError = chrome.runtime.lastError;
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(timeoutId);
+        if (lastError || !response?.ok) {
           resolve(false);
           return;
         }
@@ -143,7 +155,10 @@ clearCacheButton.addEventListener("click", async () => {
       if (openedTabCleared) {
         setCacheStatus("접수 내역 탭을 열어 캐시를 초기화했습니다.");
       } else {
-        setCacheStatus("접수 내역 탭에서 캐시를 초기화하지 못했습니다.", "red");
+        setCacheStatus(
+          "새로 열린 접수 내역 탭에서 로그인 후 다시 눌러주세요.",
+          "red",
+        );
       }
     }
   } finally {
