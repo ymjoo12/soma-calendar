@@ -27,10 +27,7 @@ document.getElementById("store-link").href = getStoreLink();
 
 const clearCacheButton = document.getElementById("clear-cache");
 const cacheStatus = document.getElementById("cache-status");
-const CACHE_CLEAR_HISTORY_URLS = [
-  "https://www.swmaestro.ai/sw/mypage/userAnswer/history.do?menuNo=200047",
-  "https://www.swmaestro.ai/busan/sw/mypage/userAnswer/history.do?menuNo=200047",
-];
+const CACHE_CLEAR_FALLBACK_URL = "https://www.swmaestro.ai/sw/main/main.do";
 const CACHE_CLEAR_RETRY_COUNT = 12;
 const CACHE_CLEAR_RETRY_DELAY_MS = 250;
 const CACHE_CLEAR_MESSAGE_TIMEOUT_MS = 500;
@@ -96,14 +93,11 @@ function createTab(createProperties) {
   });
 }
 
-function updateTab(tabId, updateProperties) {
+function removeTab(tabId) {
   return new Promise((resolve) => {
-    chrome.tabs.update(tabId, updateProperties, (tab) => {
-      if (chrome.runtime.lastError) {
-        resolve(null);
-        return;
-      }
-      resolve(tab);
+    chrome.tabs.remove(tabId, () => {
+      void chrome.runtime.lastError;
+      resolve();
     });
   });
 }
@@ -124,41 +118,36 @@ async function waitAndClearCacheInTab(tab) {
   return false;
 }
 
-async function clearCacheInOpenedHistoryTab() {
-  let tab = await createTab({
-    url: CACHE_CLEAR_HISTORY_URLS[0],
+async function clearCacheInTemporaryTab() {
+  const tab = await createTab({
+    url: CACHE_CLEAR_FALLBACK_URL,
     active: false,
   });
   if (!tab?.id) {
     return false;
   }
 
-  if (await waitAndClearCacheInTab(tab)) {
-    return true;
+  try {
+    return await waitAndClearCacheInTab(tab);
+  } finally {
+    await removeTab(tab.id);
   }
-
-  tab = await updateTab(tab.id, { url: CACHE_CLEAR_HISTORY_URLS[1] });
-  return waitAndClearCacheInTab(tab);
 }
 
 clearCacheButton.addEventListener("click", async () => {
   clearCacheButton.disabled = true;
-  setCacheStatus("캐시 초기화 중...");
+  setCacheStatus("처리 중...");
 
   try {
     const clearedCount = await clearCacheInOpenTabs();
     if (clearedCount > 0) {
-      setCacheStatus("캐시를 초기화했습니다.");
+      setCacheStatus("완료");
     } else {
-      setCacheStatus("접수 내역 탭을 열어 캐시 초기화 중...");
-      const openedTabCleared = await clearCacheInOpenedHistoryTab();
-      if (openedTabCleared) {
-        setCacheStatus("접수 내역 탭을 열어 캐시를 초기화했습니다.");
+      const temporaryTabCleared = await clearCacheInTemporaryTab();
+      if (temporaryTabCleared) {
+        setCacheStatus("완료");
       } else {
-        setCacheStatus(
-          "새로 열린 접수 내역 탭에서 로그인 후 다시 눌러주세요.",
-          "red",
-        );
+        setCacheStatus("초기화 실패", "red");
       }
     }
   } finally {

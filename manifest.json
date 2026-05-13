@@ -14,6 +14,24 @@
   },
   "content_scripts": [
     {
+      "matches": ["https://*.swmaestro.ai/*", "https://swmaestro.ai/*"],
+      "exclude_matches": [
+        "https://*.swmaestro.ai/sw/mypage/userAnswer/history.do*",
+        "https://swmaestro.ai/sw/mypage/userAnswer/history.do*",
+        "https://*.swmaestro.ai/busan/sw/mypage/userAnswer/history.do*",
+        "https://swmaestro.ai/busan/sw/mypage/userAnswer/history.do*",
+        "https://*.swmaestro.ai/sw/mypage/mentoLec/list.do?*",
+        "https://swmaestro.ai/sw/mypage/mentoLec/list.do?*",
+        "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*",
+        "https://swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*",
+        "https://*.swmaestro.ai/sw/mypage/mentoLec/view.do*",
+        "https://swmaestro.ai/sw/mypage/mentoLec/view.do*",
+        "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/view.do*",
+        "https://swmaestro.ai/busan/sw/mypage/mentoLec/view.do*"
+      ],
+      "js": ["src/cache.js"]
+    },
+    {
       "matches": [
         "https://*.swmaestro.ai/sw/mypage/userAnswer/history.do*",
         "https://swmaestro.ai/sw/mypage/userAnswer/history.do*",

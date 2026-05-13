@@ -203,12 +203,18 @@
       transform: none;
     }
 
+    #clear-cache .label {
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+    }
+
     .cache-status {
-      margin-top: 6px;
-      min-height: 14px;
-      font-size: 11px;
+      font-size: 10px;
+      font-weight: 500;
       color: var(--ink-mute);
       letter-spacing: -0.005em;
+      white-space: nowrap;
     }
 
     /* ── Footer ─────────────────────────────────── */
@@ -324,10 +330,12 @@
       </a>
       <button id="clear-cache" class="link-card" type="button">
         <span class="icon">♻️</span>
-        <span class="label">캐시 초기화</span>
+        <span class="label">
+          캐시 초기화
+          <span id="cache-status" class="cache-status" aria-live="polite"></span>
+        </span>
         <span class="arrow">↻</span>
       </button>
-      <div id="cache-status" class="cache-status"></div>
     </div>
   </section>
 
