@@ -100,4 +100,4 @@ git clone https://github.com/ymjoo12/soma-calendar.git
 | [@doorcs](https://github.com/doorcs) | 지나간 강의 회색 표시, 코드 포매팅, 레이아웃 변경 fallback 추가, 디자인 수정 | [#32](https://github.com/ymjoo12/soma-calendar/pull/32), [#33](https://github.com/ymjoo12/soma-calendar/pull/33), [#43](https://github.com/ymjoo12/soma-calendar/pull/43) |
 | [@twkim02](https://github.com/twkim02) | 캘린더 과거 2주 보기 기능 추가 | [#39](https://github.com/ymjoo12/soma-calendar/pull/39) |
 | [@gyuhochoime](https://github.com/gyuhochoime) | 팝업에 부산 센터 링크 추가 | [#45](https://github.com/ymjoo12/soma-calendar/pull/45) |
-| [@OhChangEun](https://github.com/OhChangEun) | 온라인 필터, 상세 팝업 스타일 수정, 상세 캐시 | [#47](https://github.com/ymjoo12/soma-calendar/pull/47), [#49](https://github.com/ymjoo12/soma-calendar/pull/49) |
+| [@OhChangEun](https://github.com/OhChangEun) | 진행방식 필터 (부산 센터), 상세 팝업 스타일 수정, 상세 캐시 | [#47](https://github.com/ymjoo12/soma-calendar/pull/47), [#49](https://github.com/ymjoo12/soma-calendar/pull/49) |
