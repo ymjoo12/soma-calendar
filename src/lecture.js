@@ -219,7 +219,7 @@ function renderCalendarPopupDetail(container, detail) {
   const peopleText = hasPeopleCounts
     ? `${detail.appliedCount}/${detail.totalCount}`
     : detail.totalCount
-      ? `${detail.appliedCount ?? 0}/${detail.totalCount}`
+      ? `${detail.appliedCount ?? "-"}/${detail.totalCount}`
       : detail.capacityText;
   const fields = [
     ["시간", detail.timeStr],
