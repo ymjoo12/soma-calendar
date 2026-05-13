@@ -31,6 +31,7 @@ const CACHE_CLEAR_FALLBACK_URL = "https://www.swmaestro.ai/sw/main/main.do";
 const CACHE_CLEAR_RETRY_COUNT = 12;
 const CACHE_CLEAR_RETRY_DELAY_MS = 250;
 const CACHE_CLEAR_MESSAGE_TIMEOUT_MS = 500;
+const CACHE_CLEAR_TAB_LOAD_TIMEOUT_MS = 15000;
 
 function setCacheStatus(text, color = "#666") {
   cacheStatus.textContent = text;
@@ -102,6 +103,33 @@ function removeTab(tabId) {
   });
 }
 
+function waitForTabComplete(tabId) {
+  return new Promise((resolve) => {
+    let resolved = false;
+    const finish = () => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timeoutId);
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve();
+    };
+    const timeoutId = setTimeout(finish, CACHE_CLEAR_TAB_LOAD_TIMEOUT_MS);
+    const listener = (updatedTabId, changeInfo) => {
+      if (updatedTabId === tabId && changeInfo.status === "complete") {
+        finish();
+      }
+    };
+
+    chrome.tabs.onUpdated.addListener(listener);
+    chrome.tabs.get(tabId, (tab) => {
+      void chrome.runtime.lastError;
+      if (tab?.status === "complete") {
+        finish();
+      }
+    });
+  });
+}
+
 async function clearCacheInOpenTabs() {
   const tabs = await queryTabs({});
   const results = await Promise.all(tabs.map(clearCacheInTab));
@@ -128,6 +156,7 @@ async function clearCacheInTemporaryTab() {
   }
 
   try {
+    await waitForTabComplete(tab.id);
     return await waitAndClearCacheInTab(tab);
   } finally {
     await removeTab(tab.id);
