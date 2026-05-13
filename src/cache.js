@@ -3,14 +3,12 @@ const LECTURE_DETAIL_CONCURRENCY_LIMIT = 5;
 const LECTURE_CACHE_VERSION = 2;
 const LECTURE_RECORD_CACHE_PREFIX = "soma-lecture-record:";
 const LECTURE_ORDER_CACHE_PREFIX = "soma-lecture-order:";
-const LECTURE_FIRST_PAGE_STATE_PREFIX = "soma-lecture-first-page:";
 const LECTURE_PAST_STATE_PREFIX = "soma-lecture-past-state:";
 const LECTURE_BASIC_CACHE_TTL_MS = 30 * 60 * 1000;
 const LECTURE_VOLATILE_CACHE_TTL_MS = 0;
 const LECTURE_PAST_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const LECTURE_HISTORY_PAGE_SIZE = 10;
 const LECTURE_ORDER_HISTORY_LATEST = "history-latest";
-const LECTURE_ORDER_CALENDAR_TIME = "calendar-time";
 const LECTURE_ORDER_PAST_LATEST = "past-latest";
 const LECTURE_RECORD_FIELDS = [
   "url",
@@ -66,6 +64,7 @@ const LEGACY_CACHE_PREFIXES = [
   "soma-history-first-page:",
   "soma-history-past-lectures:",
   "soma-past-lecture-detail:",
+  "soma-lecture-first-page:",
 ];
 const lectureRecordMemory = new Map();
 const lectureDetailRequests = new Map();
@@ -85,10 +84,6 @@ function getLectureRecordCacheKey(id) {
 
 function getLectureOrderCacheKey(path, type) {
   return `${LECTURE_ORDER_CACHE_PREFIX}${type}:${path}`;
-}
-
-function getLectureFirstPageStateKey(path) {
-  return LECTURE_FIRST_PAGE_STATE_PREFIX + path;
 }
 
 function getLecturePastStateKey(path) {
@@ -346,121 +341,43 @@ function writeLectureOrder(path, type, ids, storage = sessionStorage) {
   }
 }
 
-function getLectureListFingerprint(lectures) {
-  return lectures
-    .map(
-      (lecture) =>
-        `${getLectureRecordId(lecture)}|${lecture.dateStr}|${lecture.timeRangeStr}|${lecture.isApproved}`,
-    )
-    .join("\n");
-}
-
-function readLectureFirstPageState(path) {
-  const storageKey = getLectureFirstPageStateKey(path);
-  try {
-    const raw = sessionStorage.getItem(storageKey);
-    if (!raw) {
-      return null;
-    }
-
-    const cached = JSON.parse(raw);
-    if (
-      cached.version !== LECTURE_CACHE_VERSION ||
-      typeof cached.fingerprint !== "string" ||
-      !Array.isArray(cached.ids)
-    ) {
-      sessionStorage.removeItem(storageKey);
-      return null;
-    }
-
-    return cached;
-  } catch (error) {
-    console.error(error);
-    return null;
-  }
-}
-
-function writeLectureFirstPageState(path, lectures) {
-  const ids = lectures.map(getLectureRecordId);
-  try {
-    sessionStorage.setItem(
-      getLectureFirstPageStateKey(path),
-      JSON.stringify({
-        version: LECTURE_CACHE_VERSION,
-        savedAt: Date.now(),
-        fingerprint: getLectureListFingerprint(lectures),
-        ids,
-      }),
-    );
-  } catch (error) {
-    console.error(error);
-  }
-}
-
-function isSameIdList(a, b) {
-  return a.length === b.length && a.every((id, index) => id === b[index]);
-}
-
-function isPrependedFirstPage(previousIds, currentIds) {
-  if (!previousIds || previousIds.length === 0 || currentIds.length === 0) {
-    return false;
-  }
-
-  const previousStartIndex = currentIds.indexOf(previousIds[0]);
-  if (previousStartIndex <= 0) {
-    return false;
-  }
-
-  const overlapLength = currentIds.length - previousStartIndex;
-  return isSameIdList(
-    currentIds.slice(previousStartIndex),
-    previousIds.slice(0, overlapLength),
-  );
-}
-
-function writeHistoryCalendarOrder(path, ids) {
-  const lectures = ids
-    .map(getCachedLectureListItem)
-    .filter(Boolean)
-    .filter((lecture) => getLectureStartAt(lecture));
-  normalizeLectureDates(lectures);
-  writeLectureOrder(
-    path,
-    LECTURE_ORDER_CALENDAR_TIME,
-    lectures.map(getLectureRecordId),
-  );
-}
-
 function writeHistoryLatestOrder(path, ids) {
   writeLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST, ids);
-  writeHistoryCalendarOrder(path, ids);
+}
+
+function canReuseHistoryTail(currentIds, orderIds) {
+  if (currentIds.length === 0 || orderIds.length === 0) {
+    return false;
+  }
+
+  const isSameHead = currentIds.every((id, index) => orderIds[index] === id);
+  if (isSameHead) {
+    return true;
+  }
+
+  const oldHeadIndex = currentIds.indexOf(orderIds[0]);
+  if (oldHeadIndex <= 0) {
+    return false;
+  }
+
+  return currentIds
+    .slice(oldHeadIndex)
+    .every((id, index) => orderIds[index] === id);
 }
 
 function mergeHistoryOrderWithFirstPage(path, firstPageLectures) {
   const currentIds = firstPageLectures.map(getLectureRecordId);
-  const previousFirstPage = readLectureFirstPageState(path);
   const orderIds = readLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST);
 
-  if (!orderIds) {
-    writeHistoryLatestOrder(path, currentIds);
-  } else if (
-    previousFirstPage?.fingerprint ===
-    getLectureListFingerprint(firstPageLectures)
-  ) {
+  if (orderIds && canReuseHistoryTail(currentIds, orderIds)) {
     writeHistoryLatestOrder(path, [
       ...currentIds,
       ...orderIds.filter((id) => !currentIds.includes(id)),
     ]);
-  } else if (isPrependedFirstPage(previousFirstPage?.ids, currentIds)) {
-    writeHistoryLatestOrder(path, [
-      ...currentIds,
-      ...orderIds.filter((id) => !currentIds.includes(id)),
-    ]);
-  } else {
-    writeHistoryLatestOrder(path, currentIds);
+    return;
   }
 
-  writeLectureFirstPageState(path, firstPageLectures);
+  writeHistoryLatestOrder(path, currentIds);
 }
 
 function mergeHistoryOrderWithPage(path, page, lectures) {
@@ -473,7 +390,7 @@ function mergeHistoryOrderWithPage(path, page, lectures) {
   writeHistoryLatestOrder(path, nextOrderIds);
 }
 
-function readHistoryPageCache(path, page) {
+function readHistoryPageCache(path, page, totalPages) {
   if (String(page) === PAGE_ONE) {
     return null;
   }
@@ -488,7 +405,11 @@ function readHistoryPageCache(path, page) {
     pageStartIndex,
     pageStartIndex + LECTURE_HISTORY_PAGE_SIZE,
   );
-  if (pageIds.length < LECTURE_HISTORY_PAGE_SIZE) {
+  const isLastPage = Number(page) === totalPages;
+  if (
+    pageIds.length === 0 ||
+    (!isLastPage && pageIds.length < LECTURE_HISTORY_PAGE_SIZE)
+  ) {
     return null;
   }
 
@@ -608,7 +529,7 @@ async function fetchLecturePageHtml(path, page) {
 
 async function fetchLecturePage(path, page, options = {}) {
   if (!options.forceRefresh) {
-    const cached = readHistoryPageCache(path, page);
+    const cached = readHistoryPageCache(path, page, options.totalPages);
     if (cached) {
       return cached;
     }
@@ -675,7 +596,6 @@ function clearAllLectureCache() {
   const prefixes = [
     LECTURE_RECORD_CACHE_PREFIX,
     LECTURE_ORDER_CACHE_PREFIX,
-    LECTURE_FIRST_PAGE_STATE_PREFIX,
     LECTURE_PAST_STATE_PREFIX,
     ...LEGACY_CACHE_PREFIXES,
   ];
@@ -693,7 +613,6 @@ function clearHistorySessionCache() {
   const prefixes = [
     LECTURE_RECORD_CACHE_PREFIX,
     LECTURE_ORDER_CACHE_PREFIX,
-    LECTURE_FIRST_PAGE_STATE_PREFIX,
     ...LEGACY_CACHE_PREFIXES,
   ];
   try {

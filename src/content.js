@@ -143,7 +143,7 @@ function refreshVisibleCalendarCells(wrapper, today, changedLectures) {
     changedLectures.map((lecture) => formatDateKey(lecture.startAt)),
   );
   const cells = wrapper.querySelectorAll(".calendar-cell[data-calendar-date]");
-  let refreshed = false;
+  const refreshedEventElems = [];
   for (const cell of cells) {
     if (!changedDateKeys.has(cell.dataset.calendarDate)) {
       continue;
@@ -154,12 +154,12 @@ function refreshVisibleCalendarCells(wrapper, today, changedLectures) {
       newCell.dataset.pastCell = cell.dataset.pastCell;
     }
     cell.replaceWith(newCell);
-    refreshed = true;
+    refreshedEventElems.push(...newCell.querySelectorAll(".calendar-lecture"));
   }
-  if (!refreshed) {
+  if (refreshedEventElems.length === 0) {
     return;
   }
-  updateCalendarElement().catch((error) => {
+  updateCalendarElement(refreshedEventElems).catch((error) => {
     console.error(error);
   });
 }
@@ -183,15 +183,17 @@ function createPastButton(wrapper, startDate, today) {
   pastBtn.addEventListener("click", () => {
     currentStart.setDate(currentStart.getDate() - 14);
     const insertBefore = cell.nextSibling;
+    const addedEventElems = [];
     for (let i = 0; i < 14; i++) {
       const date = new Date(currentStart);
       date.setDate(currentStart.getDate() + i);
       const dayCell = createDayCell(date, today, lectures);
       dayCell.dataset.pastCell = "true";
       wrapper.insertBefore(dayCell, insertBefore);
+      addedEventElems.push(...dayCell.querySelectorAll(".calendar-lecture"));
     }
     resetBtn.hidden = false;
-    updateCalendarElement().catch((error) => {
+    updateCalendarElement(addedEventElems).catch((error) => {
       console.error(error);
     });
   });
@@ -358,15 +360,15 @@ async function updateCalendarLectureElement(ev) {
   }
 }
 
-async function updateCalendarElement() {
-  const eventElems = Array.from(
-    document.querySelectorAll("div.calendar-lecture"),
+async function updateCalendarElement(eventElems) {
+  const targetEventElems = Array.from(
+    eventElems ?? document.querySelectorAll("div.calendar-lecture"),
   ).filter(
     (ev) =>
       ev.querySelector('[data-role="location"]')?.innerText === "장소 로딩중..",
   );
   await mapWithConcurrency(
-    eventElems,
+    targetEventElems,
     LECTURE_DETAIL_CONCURRENCY_LIMIT,
     updateCalendarLectureElement,
   );

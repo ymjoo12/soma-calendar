@@ -218,6 +218,22 @@ function isPastLecturePage(lectures, startDate) {
   );
 }
 
+async function getHistoryPageLectures(path, page, firstPage, totalPages) {
+  return page === 1
+    ? firstPage.lectures
+    : fetchLecturePage(path, page, { totalPages });
+}
+
+function cachePastLecturesFromPage(path, pageLectures, startDate) {
+  const pastLectures = pageLectures.filter(
+    (lecture) => lecture.startAt < startDate,
+  );
+  if (pastLectures.length > 0) {
+    writePastLectureCache(path, pastLectures);
+  }
+  return pastLectures;
+}
+
 async function cachePastLecturePages(
   path,
   startPage,
@@ -229,15 +245,13 @@ async function cachePastLecturePages(
   let foundCurrentOrFutureLecture = false;
 
   for (let page = startPage; page <= totalPages; page++) {
-    const pageLectures = await fetchLecturePage(path, page);
-    const pastLectures = pageLectures.filter(
-      (lecture) => lecture.startAt < startDate,
+    const pageLectures = await fetchLecturePage(path, page, { totalPages });
+    const pastLectures = cachePastLecturesFromPage(
+      path,
+      pageLectures,
+      startDate,
     );
     const hasCurrentLectures = pastLectures.length !== pageLectures.length;
-
-    if (pastLectures.length > 0) {
-      writePastLectureCache(path, pastLectures);
-    }
 
     const lecturesForPage = hasCurrentLectures
       ? pageLectures
@@ -276,14 +290,17 @@ async function getCalendarLectures(startDate) {
   let firstPastPage = null;
 
   for (let page = 1; page <= totalPages; page++) {
-    const pageLectures =
-      page === 1 ? firstPage.lectures : await fetchLecturePage(path, page);
-    const pastLectures = pageLectures.filter(
-      (lecture) => lecture.startAt < startDate,
+    const pageLectures = await getHistoryPageLectures(
+      path,
+      page,
+      firstPage,
+      totalPages,
     );
-    if (pastLectures.length > 0) {
-      writePastLectureCache(path, pastLectures);
-    }
+    const pastLectures = cachePastLecturesFromPage(
+      path,
+      pageLectures,
+      startDate,
+    );
 
     if (isPastLecturePage(pageLectures, startDate)) {
       firstPastPage = page;
@@ -335,14 +352,17 @@ async function getAllLectures() {
   let fetchedAllPages = true;
 
   for (let page = 1; page <= totalPages; page++) {
-    const pageLectures =
-      page === 1 ? firstPage.lectures : await fetchLecturePage(path, page);
-    const pastLectures = pageLectures.filter(
-      (lecture) => lecture.startAt < startDate,
+    const pageLectures = await getHistoryPageLectures(
+      path,
+      page,
+      firstPage,
+      totalPages,
     );
-    if (pastLectures.length > 0) {
-      writePastLectureCache(path, pastLectures);
-    }
+    const pastLectures = cachePastLecturesFromPage(
+      path,
+      pageLectures,
+      startDate,
+    );
 
     lectures.push(...pageLectures);
     if (
