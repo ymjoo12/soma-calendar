@@ -1,53 +1,332 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 
 <head>
   <meta charset="UTF-8">
   <title>소마 시간표</title>
+  <link rel="stylesheet" as="style" crossorigin
+    href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <style>
+    :root {
+      --bg: #f6f4ee;
+      --surface: #ffffff;
+      --ink: #0c1a33;
+      --ink-soft: #4a5468;
+      --ink-mute: #8e94a3;
+      --line: #e8e4d6;
+      --line-soft: #f0ece0;
+      --accent: #0b3a82;
+      --accent-tint: #eef2fb;
+      --danger: #c23b3b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      width: 320px;
+      font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
+        'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif;
+      font-size: 13px;
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.5;
+      letter-spacing: -0.012em;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    /* ── Header ─────────────────────────────────── */
+    .header {
+      position: relative;
+      padding: 16px 18px 14px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .header::after {
+      content: "";
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: -1px;
+      height: 1px;
+      background: linear-gradient(90deg, var(--accent), transparent 70%);
+      opacity: 0.35;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+    }
+
+    .brand img {
+      height: 22px;
+      width: auto;
+      flex-shrink: 0;
+    }
+
+    .brand-meta {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.15;
+    }
+
+    .brand-eyebrow {
+      font-size: 9.5px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+      font-weight: 700;
+    }
+
+    .brand-title {
+      margin-top: 3px;
+      font-size: 14.5px;
+      font-weight: 700;
+      letter-spacing: -0.022em;
+      color: var(--ink);
+    }
+
+    /* ── Section ────────────────────────────────── */
+    .section {
+      padding: 14px 18px 0;
+    }
+
+    .section-label {
+      margin: 0 0 8px;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+      font-weight: 700;
+    }
+
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* ── Link card ──────────────────────────────── */
+    .link-card {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 10px 12px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+      cursor: pointer;
+    }
+
+    .link-card:hover {
+      border-color: var(--accent);
+      background: var(--accent-tint);
+      transform: translateY(-1px);
+    }
+
+    .link-card .icon {
+      width: 28px;
+      height: 28px;
+      flex: 0 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      background: var(--bg);
+      border-radius: 8px;
+      transition: background 160ms ease;
+    }
+
+    .link-card:hover .icon {
+      background: #ffffff;
+    }
+
+    .link-card .label {
+      font-size: 12.5px;
+      font-weight: 600;
+      letter-spacing: -0.018em;
+      color: var(--ink);
+    }
+
+    .link-card .arrow {
+      margin-left: auto;
+      font-size: 13px;
+      color: var(--ink-mute);
+      transition: color 160ms ease, transform 160ms ease;
+    }
+
+    .link-card:hover .arrow {
+      color: var(--accent);
+      transform: translateX(2px);
+    }
+
+    /* ── Cache button ───────────────────────────── */
+    .cache-btn {
+      margin-top: 6px;
+      width: 100%;
+      padding: 10px 12px;
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      color: #ffffff;
+      background: var(--ink);
+      border: 1px solid var(--ink);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+    }
+
+    .cache-btn:hover:not(:disabled) {
+      background: var(--accent);
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+
+    .cache-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .cache-status {
+      margin-top: 6px;
+      min-height: 14px;
+      font-size: 11px;
+      color: var(--ink-mute);
+      letter-spacing: -0.005em;
+    }
+
+    /* ── Footer ─────────────────────────────────── */
+    .footer {
+      margin-top: 14px;
+      padding: 13px 18px 14px;
+      background: var(--surface);
+      border-top: 1px solid var(--line);
+    }
+
+    .note {
+      margin: 0 0 10px;
+      font-size: 11px;
+      line-height: 1.6;
+      color: var(--ink-soft);
+      letter-spacing: -0.003em;
+    }
+
+    .author {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 11px;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      transition: border-color 160ms ease, background 160ms ease;
+    }
+
+    .author:hover {
+      border-color: var(--ink);
+      background: var(--surface);
+    }
+
+    .author img {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .author-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .author-name {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+
+    .author-version {
+      font-size: 10.5px;
+      color: var(--ink-mute);
+      letter-spacing: -0.005em;
+    }
+  </style>
 </head>
 
-<body style="font-family: sans-serif; font-size: 14px;">
-  <a href="https://www.swmaestro.ai/sw/main/main.do" target="_blank" rel="noreferrer">
-    <img src="https://www.swmaestro.ai/static/sw/img/common/logo.png" alt="logo"
-      style="width: 100px; height: auto; margin-bottom: 10px;" />
-  </a>
-
-  <div style="margin-bottom: 10px;">
-    <a href="https://www.swmaestro.ai/sw/mypage/userAnswer/history.do?menuNo=200047" target="_blank" rel="noreferrer"
-      style="color: #333; font-weight: bold; display: flex; align-items: center;">
-      🏙️ 멘토링/특강 접수 내역 확인하기(서울 센터)
-    </a>
-  </div>
-
-  <div style="margin-bottom: 10px;">
-    <a href="https://www.swmaestro.ai/busan/sw/mypage/userAnswer/history.do?menuNo=200047" target="_blank"
-      rel="noreferrer" style="color: #333; font-weight: bold; display: flex; align-items: center;">
-      🌊 멘토링/특강 접수 내역 확인하기(부산 센터)
-    </a>
-  </div>
-
-  <div style="margin-bottom: 10px;">
-    <a id="store-link" href="#" target="_blank" rel="noreferrer"
-      style="color: #333; font-weight: bold; display: flex; align-items: center;">
-      🧩 스토어로 이동하기
-    </a>
-  </div>
-
-  <div style="margin-bottom: 10px; font-size: 12px; white-space: nowrap; display: flex; align-items: center; color: #666; font-weight: bold;">
-    소마 멘토링/특강 게시판에 시간표를 띄워주는 확장 프로그램입니다.</br>
-    버그/개선사항은 아래 GitHub을 통해 Issue/Pull Request를 남겨주세요.
-  </div>
-
-  <div style="white-space: nowrap; display: flex; align-items: center; margin-bottom: 8px;">
-    <a href="https://github.com/ymjoo12/soma-calendar" target="_blank" rel="noreferrer"
-      style="text-decoration: none; color: #333; font-weight: bold; display: flex; align-items: center; padding: 5px; border: 1px solid #ccc; width: 100%;">
-      <span><img src="https://github.com/favicon.ico" style="width: 25px; height: auto; margin-right: 6px;" /></span>
-      <span style="font-size: 12px; display: flex; flex-direction: column;">
-        <span>🛠️ SWM 16기 주영민 (ymjoo12)</span>
-        <span id="version-status" style="color: gray;">버전 확인 중...</span>
+<body>
+  <header class="header">
+    <a class="brand" href="https://www.swmaestro.ai/sw/main/main.do" target="_blank" rel="noreferrer">
+      <img src="https://www.swmaestro.ai/static/sw/img/common/logo.png" alt="SW Maestro" />
+      <span class="brand-meta">
+        <span class="brand-eyebrow">SW Maestro</span>
+        <span class="brand-title">멘토링 시간표</span>
       </span>
     </a>
-  </div>
+  </header>
+
+  <section class="section">
+    <p class="section-label">접수 내역 확인</p>
+    <div class="stack">
+      <a class="link-card" href="https://www.swmaestro.ai/sw/mypage/userAnswer/history.do?menuNo=200047"
+        target="_blank" rel="noreferrer">
+        <span class="icon">🏙️</span>
+        <span class="label">서울 센터</span>
+        <span class="arrow">→</span>
+      </a>
+      <a class="link-card" href="https://www.swmaestro.ai/busan/sw/mypage/userAnswer/history.do?menuNo=200047"
+        target="_blank" rel="noreferrer">
+        <span class="icon">🌊</span>
+        <span class="label">부산 센터</span>
+        <span class="arrow">→</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="section-label">도구</p>
+    <div class="stack">
+      <a id="store-link" class="link-card" href="#" target="_blank" rel="noreferrer">
+        <span class="icon">🧩</span>
+        <span class="label">스토어로 이동</span>
+        <span class="arrow">→</span>
+      </a>
+      <button id="clear-cache" class="cache-btn" type="button">캐시 초기화</button>
+      <div id="cache-status" class="cache-status"></div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p class="note">
+      소마 멘토링/특강 게시판에 시간표를 띄워주는 확장 프로그램입니다.
+      버그/개선사항은 아래 GitHub을 통해 Issue/Pull Request를 남겨주세요.
+    </p>
+    <a class="author" href="https://github.com/ymjoo12/soma-calendar" target="_blank" rel="noreferrer">
+      <img src="https://github.com/favicon.ico" alt="" />
+      <span class="author-info">
+        <span class="author-name">🛠️ SWM 16기 주영민 (ymjoo12)</span>
+        <span id="version-status" class="author-version">버전 확인 중...</span>
+      </span>
+    </a>
+  </footer>
 
   <script src="popup.js"></script>
 </body>
