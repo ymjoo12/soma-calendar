@@ -5,7 +5,7 @@ const LECTURE_RECORD_CACHE_PREFIX = "soma-lecture-record:";
 const LECTURE_ORDER_CACHE_PREFIX = "soma-lecture-order:";
 const LECTURE_PAST_STATE_PREFIX = "soma-lecture-past-state:";
 const LECTURE_BASIC_CACHE_TTL_MS = 30 * 60 * 1000;
-const LECTURE_VOLATILE_CACHE_TTL_MS = 0;
+const LECTURE_VOLATILE_CACHE_TTL_MS = 30 * 1000;
 const LECTURE_PAST_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const LECTURE_HISTORY_PAGE_SIZE = 10;
 const LECTURE_ORDER_HISTORY_LATEST = "history-latest";
@@ -171,7 +171,7 @@ function getRecordValues(record) {
   return { ...record.fields };
 }
 
-function getLectureStartAt(fields) {
+function getLectureStartAtFromListFields(fields) {
   if (
     typeof fields.dateStr !== "string" ||
     typeof fields.timeRangeStr !== "string"
@@ -187,6 +187,38 @@ function getLectureStartAt(fields) {
 
   const startAt = new Date(`${datePart}T${normalizeTimeStr(startTime)}`);
   return Number.isNaN(startAt.getTime()) ? null : startAt;
+}
+
+function getLectureStartAtFromDetailFields(fields) {
+  if (typeof fields.timeStr !== "string") {
+    return null;
+  }
+
+  const dateMatch = fields.timeStr.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  if (!dateMatch) {
+    return null;
+  }
+
+  const [, year, month, day] = dateMatch;
+  const timeText = fields.timeStr.slice(dateMatch.index + dateMatch[0].length);
+  const timeMatch = timeText.match(/(\d{1,2})(?::(\d{2}))?\s*시?/);
+  if (!timeMatch) {
+    return null;
+  }
+
+  const [, hour, minute = "0"] = timeMatch;
+  const datePart = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  const startAt = new Date(
+    `${datePart}T${normalizeTimeStr(`${hour}:${minute}:0`)}`,
+  );
+  return Number.isNaN(startAt.getTime()) ? null : startAt;
+}
+
+function getLectureStartAt(fields) {
+  return (
+    getLectureStartAtFromListFields(fields) ||
+    getLectureStartAtFromDetailFields(fields)
+  );
 }
 
 function isPastLectureFields(fields) {
@@ -286,6 +318,18 @@ function getCachedLectureFields(url, requiredFields) {
     getLectureDetailCacheKey(url),
     requiredFields,
   );
+}
+
+function getCachedPastLectureFields(url, requiredFields) {
+  const record = readLectureRecord(getLectureDetailCacheKey(url));
+  if (
+    !record ||
+    !isPastLectureFields(record.fields) ||
+    !hasFreshLectureFields(record, requiredFields)
+  ) {
+    return null;
+  }
+  return getRecordValues(record);
 }
 
 function getCachedLectureListItem(id) {
@@ -568,6 +612,13 @@ function fetchLectureDetail(key, requestUrl) {
 async function getLectureDetail(url, options = {}) {
   const requiredFields = options.requiredFields ?? LECTURE_RECORD_FIELDS;
   const key = getLectureDetailCacheKey(url);
+
+  if (options.preferPastCache) {
+    const cached = getCachedPastLectureFields(url, requiredFields);
+    if (cached) {
+      return cached;
+    }
+  }
 
   if (!options.forceRefresh) {
     const cached = getCachedLectureFields(url, requiredFields);

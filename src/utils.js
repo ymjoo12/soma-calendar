@@ -111,6 +111,10 @@ function extractLectureDetailFromHTML(html) {
       group?.querySelector(".c")?.innerText.replace(/\s+/g, " ").trim() || null
     );
   };
+  const getPeopleCount = (text) =>
+    text?.match(/(\d+)\s*명/)?.[1] || text?.match(/(\d+)/)?.[1] || null;
+  const getAppliedCount = (text) =>
+    text?.match(/\[(\d+)\s*명\]/)?.[1] || getPeopleCount(text);
   const capacityText = getTopValue("모집인원");
   const approvedText = getTopValue("개설 승인");
   const appliedSummary =
@@ -118,8 +122,8 @@ function extractLectureDetailFromHTML(html) {
       .querySelector(".total-normal.mt50")
       ?.innerText.replace(/\s+/g, " ")
       .trim() || "";
-  const appliedCount = appliedSummary.match(/\[(\d+)\s*명\]/)?.[1] || null;
-  const totalCount = capacityText?.match(/(\d+)/)?.[1] || null;
+  const appliedCount = getAppliedCount(appliedSummary);
+  const totalCount = getPeopleCount(capacityText);
   const deliveryMethod = getTopValue("진행방식");
   return {
     location: getTopValue("장소"),

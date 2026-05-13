@@ -14,6 +14,10 @@ const rowIsOnlineMap = new Map();
 let rowOnlineStatusPromise = null;
 let onlineFilterUpdateQueued = false;
 
+function isBusanLecturePage() {
+  return getSwPathPrefix() === "/busan";
+}
+
 function getListRows() {
   return document.querySelectorAll(
     "#listFrm > div.boardlist.mt50 > table > tbody > tr",
@@ -109,6 +113,8 @@ function applyOnlineFilter() {
 }
 
 function insertOnlineFilterUI() {
+  if (!isBusanLecturePage()) return;
+
   const existingTabs = document.querySelector("ul.tabs-sort");
   if (!existingTabs) return;
 
@@ -211,11 +217,12 @@ function renderCalendarPopupDetail(container, detail) {
   const hasPeopleCounts =
     /^\d+$/.test(detail.appliedCount) && /^\d+$/.test(detail.totalCount);
   const peopleText = hasPeopleCounts
-    ? `${detail.appliedCount ?? 0}/${detail.totalCount}`
-    : detail.capacityText;
+    ? `${detail.appliedCount}/${detail.totalCount}`
+    : detail.totalCount
+      ? `${detail.appliedCount ?? 0}/${detail.totalCount}`
+      : detail.capacityText;
   const fields = [
     ["시간", detail.timeStr],
-    ["진행방식", detail.deliveryMethod],
     ["장소", detail.location],
     ["인원", peopleText],
   ];
@@ -265,9 +272,9 @@ async function enrichCalendarPopup(item, token) {
   try {
     const detail = await getLectureDetail(detailLink.href, {
       forceRefresh: true,
+      preferPastCache: true,
       requiredFields: [
         "location",
-        "deliveryMethod",
         "timeStr",
         "capacityText",
         "totalCount",
@@ -377,10 +384,12 @@ function renderConflictLectures(popupElement, conflictingLectures) {
   }
 }
 
-insertOnlineFilterUI();
+if (isBusanLecturePage()) {
+  insertOnlineFilterUI();
+}
 updateLectureListPageCache();
 
-if (currentOnlineFilter !== "all") {
+if (isBusanLecturePage() && currentOnlineFilter !== "all") {
   applyOnlineFilter();
 }
 
