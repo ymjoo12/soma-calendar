@@ -8,7 +8,7 @@ getAllLectures().then((lectures) => {
     }
   }
 
-  const lecture = Client.parseLectureDetailDocument(document);
+  const lecture = getLectureFromDetailDocument(document);
   const datePart = lecture.dateStr?.split("(")[0].trim();
   const [startTime, endTime] = lecture.timeRangeStr?.split(" ~ ") ?? [];
   if (!datePart || !startTime || !endTime) {

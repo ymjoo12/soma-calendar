@@ -131,6 +131,18 @@ const Client = (() => {
     };
   }
 
+  function parseLectureListDocument(container) {
+    const rows = container.querySelectorAll(
+      "#listFrm > div.boardlist.mt50 > table > tbody > tr",
+    );
+    return [...rows]
+      .map((row) => ({
+        row,
+        lecture: parseLectureListRow(row),
+      }))
+      .filter((item) => item.lecture);
+  }
+
   // Lecture detail page
   function parseLectureDetailDocument(container) {
     const cancelBtn = container.querySelector(
@@ -200,6 +212,6 @@ const Client = (() => {
     fetchLectureHistoryHead,
     fetchLecturePage,
     parseLectureDetailDocument,
-    parseLectureListRow,
+    parseLectureListDocument,
   };
 })();

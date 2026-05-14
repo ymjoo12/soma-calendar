@@ -14,19 +14,8 @@ const rowIsOnlineMap = new Map();
 let rowOnlineStatusPromise = null;
 let onlineFilterUpdateQueued = false;
 
-function getListRows() {
-  return document.querySelectorAll(
-    "#listFrm > div.boardlist.mt50 > table > tbody > tr",
-  );
-}
-
-function updateLectureListPageCache() {
-  for (const row of getListRows()) {
-    const lecture = Client.parseLectureListRow(row);
-    if (lecture) {
-      updateLectureCache(lecture);
-    }
-  }
+function getLectureListItems() {
+  return getLectureListItemsFromDocument(document);
 }
 
 async function loadAllRowOnlineStatuses() {
@@ -35,12 +24,9 @@ async function loadAllRowOnlineStatuses() {
   }
 
   rowOnlineStatusPromise = mapWithConcurrency(
-    Array.from(getListRows()),
+    getLectureListItems(),
     LECTURE_DETAIL_CONCURRENCY_LIMIT,
-    async (row) => {
-      const lecture = Client.parseLectureListRow(row);
-      if (!lecture) return;
-
+    async ({ row, lecture }) => {
       try {
         const detail = await getLectureDetail(lecture.url, {
           requiredFields: ["isOnline"],
@@ -69,7 +55,7 @@ function queueApplyOnlineFilter() {
 }
 
 function applyOnlineFilter() {
-  for (const row of getListRows()) {
+  for (const { row } of getLectureListItems()) {
     if (currentOnlineFilter === "all") {
       row.style.display = "";
       continue;
@@ -359,7 +345,6 @@ function renderConflictLectures(popupElement, conflictingLectures) {
 if (isBusanCenterPage()) {
   insertOnlineFilterUI();
 }
-updateLectureListPageCache();
 
 if (isBusanCenterPage() && currentOnlineFilter !== "all") {
   applyOnlineFilter();
@@ -372,12 +357,10 @@ getAllLectures().then((lectures) => {
   popupElement.className = "overlap-popup";
   document.body.appendChild(popupElement);
 
-  for (const lectureRow of getListRows()) {
-    const rowLecture = Client.parseLectureListRow(lectureRow);
-    if (!rowLecture) {
-      continue;
-    }
-
+  for (const {
+    row: lectureRow,
+    lecture: rowLecture,
+  } of getLectureListItems()) {
     const datePart = rowLecture.dateStr;
     const timePart = rowLecture.timeRangeStr;
     if (!lecturesDictionary.hasOwnProperty(datePart)) {

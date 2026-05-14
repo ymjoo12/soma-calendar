@@ -23,6 +23,22 @@ function updateLectures(...lectureGroups) {
   return normalizeLectureDates(Array.from(lectureMap.values()));
 }
 
+function getLectureListItemsFromDocument(container) {
+  return Client.parseLectureListDocument(container).map(({ row, lecture }) => ({
+    row,
+    lecture: updateLectureCache(lecture),
+  }));
+}
+
+function getLectureFromDetailDocument(container, url = location.href) {
+  const lecture = Client.parseLectureDetailDocument(container);
+  return updateLectureCache({
+    ...lecture,
+    lectureId: getLectureId(url),
+    url: setPageIndexToOne(url),
+  });
+}
+
 // Cached requests
 function isPastLecturePage(lectures, startDate) {
   return (
