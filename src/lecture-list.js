@@ -15,7 +15,7 @@ let rowOnlineStatusPromise = null;
 let onlineFilterUpdateQueued = false;
 
 function getLectureListItems() {
-  return getLectureListItemsFromDocument(document);
+  return LectureService.getLectureListItemsFromDocument(document);
 }
 
 async function loadAllRowOnlineStatuses() {
@@ -23,12 +23,12 @@ async function loadAllRowOnlineStatuses() {
     return rowOnlineStatusPromise;
   }
 
-  rowOnlineStatusPromise = mapWithConcurrency(
+  rowOnlineStatusPromise = Utils.mapWithConcurrency(
     getLectureListItems(),
     LECTURE_DETAIL_CONCURRENCY_LIMIT,
     async ({ row, lecture }) => {
       try {
-        const detail = await getLectureDetail(lecture.url, {
+        const detail = await LectureService.getLectureDetail(lecture.url, {
           requiredFields: ["isOnline"],
         });
         rowIsOnlineMap.set(row, detail?.isOnline ?? null);
@@ -71,7 +71,7 @@ function applyOnlineFilter() {
 }
 
 function insertOnlineFilterUI() {
-  if (!isBusanCenterPage()) return;
+  if (!Utils.isBusanCenterPage()) return;
 
   const existingTabs = document.querySelector("ul.tabs-sort");
   if (!existingTabs) return;
@@ -228,7 +228,7 @@ async function enrichCalendarPopup(item, token) {
   renderCalendarPopupDetail(container, { loading: true });
 
   try {
-    const detail = await getLectureDetail(detailLink.href, {
+    const detail = await LectureService.getLectureDetail(detailLink.href, {
       forceRefresh: true,
       requiredFields: [
         "location",
@@ -342,16 +342,16 @@ function renderConflictLectures(popupElement, conflictingLectures) {
   }
 }
 
-if (isBusanCenterPage()) {
+if (Utils.isBusanCenterPage()) {
   insertOnlineFilterUI();
 }
 
-if (isBusanCenterPage() && currentOnlineFilter !== "all") {
+if (Utils.isBusanCenterPage() && currentOnlineFilter !== "all") {
   applyOnlineFilter();
 }
 
-getAllLectures().then((lectures) => {
-  const lecturesDictionary = convertLectureDictionary(lectures);
+LectureService.getAllLectures().then((lectures) => {
+  const lecturesDictionary = Utils.convertLectureDictionary(lectures);
 
   const popupElement = document.createElement("div");
   popupElement.className = "overlap-popup";
@@ -375,11 +375,11 @@ getAllLectures().then((lectures) => {
     for (let j = 0; j < targetList.length; j++) {
       let [targetStartMin, targetEndMin] = targetList[j].split(" ~ ");
 
-      if (getMin(endMin) <= getMin(targetStartMin)) {
+      if (Utils.getMin(endMin) <= Utils.getMin(targetStartMin)) {
         continue;
       }
 
-      if (getMin(startMin) >= getMin(targetEndMin)) {
+      if (Utils.getMin(startMin) >= Utils.getMin(targetEndMin)) {
         continue;
       }
 

@@ -233,7 +233,7 @@ async function generateCalendarElement() {
   const wrapper = document.createElement("div");
   wrapper.id = "history-calendar";
 
-  const calendarLectures = await getCalendarLectures(startDate);
+  const calendarLectures = await LectureService.getCalendarLectures(startDate);
   lectures = calendarLectures.lectures;
 
   wrapper.appendChild(createPastButton(wrapper, startDate, today));
@@ -247,7 +247,7 @@ async function generateCalendarElement() {
   if (calendarLectures.loadPastLectures) {
     calendarLectures
       .loadPastLectures((pageLectures) => {
-        lectures = updateLectures(lectures, pageLectures);
+        lectures = LectureService.updateLectures(lectures, pageLectures);
         refreshVisibleCalendarCells(wrapper, today, pageLectures);
       })
       .catch((error) => {
@@ -372,7 +372,7 @@ function cancelApply(cancelId, qustnrSn, gubun = "mentoLec") {
   }
 
   if (confirm("선택된 항목의 접수를 취소 하시겠습니까?")) {
-    fetch(`${getCenterPathPrefix()}/sw/mypage/userAnswer/cancel.json`, {
+    fetch(`${Utils.getCenterPathPrefix()}/sw/mypage/userAnswer/cancel.json`, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -392,7 +392,7 @@ function cancelApply(cancelId, qustnrSn, gubun = "mentoLec") {
           } else {
             alert("강의날짜 하루 전날부터는 취소가 불가능 합니다.");
           }
-          clearHistorySessionCache();
+          LectureCache.clearHistorySessionCache();
           location.reload();
         } else {
           alert("삭제에 실패하였습니다.");
@@ -416,15 +416,15 @@ async function updateCalendarLectureElement(ev) {
   attachCalendarLectureActions(ev, lecture);
 
   try {
-    if (isBeforeCurrentWeek(lecture)) {
-      const eventDetails = await getLectureDetail(link.href, {
+    if (Utils.isBeforeCurrentWeek(lecture)) {
+      const eventDetails = await LectureService.getLectureDetail(link.href, {
         requiredFields: CALENDAR_BASE_DETAIL_FIELDS,
       });
       renderCalendarLecture(ev, eventDetails);
       return;
     }
 
-    const eventDetails = await getLectureDetail(link.href, {
+    const eventDetails = await LectureService.getLectureDetail(link.href, {
       requiredFields: CALENDAR_CURRENT_DETAIL_FIELDS,
     });
     renderCalendarLecture(ev, eventDetails);
@@ -440,7 +440,7 @@ async function updateCalendarElement(eventElems) {
     (ev) =>
       ev.querySelector('[data-role="location"]')?.innerText === "장소 로딩중..",
   );
-  await mapWithConcurrency(
+  await Utils.mapWithConcurrency(
     targetEventElems,
     LECTURE_DETAIL_CONCURRENCY_LIMIT,
     updateCalendarLectureElement,

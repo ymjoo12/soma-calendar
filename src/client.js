@@ -60,7 +60,7 @@ const Client = (() => {
       return null;
     }
 
-    const url = setPageIndexToOne(tds[2].querySelector("a")?.href);
+    const url = Utils.setPageIndexToOne(tds[2].querySelector("a")?.href);
     const title = tds[2].innerText.trim();
     const author = tds[3].innerText.trim();
     if (!url || !title || !author) {
@@ -123,11 +123,11 @@ const Client = (() => {
     }
 
     return {
-      url: setPageIndexToOne(link.href),
+      url: Utils.setPageIndexToOne(link.href),
       title,
       dateStr,
       timeRangeStr,
-      lectureId: getLectureId(link.href),
+      lectureId: Utils.getLectureId(link.href),
     };
   }
 
@@ -187,7 +187,9 @@ const Client = (() => {
 
     return {
       totalPages: Math.ceil(total / 10),
-      lectures: normalizeLectureDates(parseLectureHistoryDocument(container)),
+      lectures: Utils.normalizeLectureDates(
+        parseLectureHistoryDocument(container),
+      ),
     };
   }
 
@@ -196,7 +198,7 @@ const Client = (() => {
       credentials: "include",
     });
     const html = await res.text();
-    return normalizeLectureDates(
+    return Utils.normalizeLectureDates(
       parseLectureHistoryDocument(parseHtmlDocument(html)),
     );
   }
