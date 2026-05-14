@@ -233,7 +233,7 @@ async function generateCalendarElement() {
   const wrapper = document.createElement("div");
   wrapper.id = "history-calendar";
 
-  const calendarLectures = await LectureService.getCalendarLectures(startDate);
+  const calendarLectures = await Service.getCalendarLectures(startDate);
   lectures = calendarLectures.lectures;
 
   wrapper.appendChild(createPastButton(wrapper, startDate, today));
@@ -247,7 +247,7 @@ async function generateCalendarElement() {
   if (calendarLectures.loadPastLectures) {
     calendarLectures
       .loadPastLectures((pageLectures) => {
-        lectures = LectureService.updateLectures(lectures, pageLectures);
+        lectures = Service.updateLectures(lectures, pageLectures);
         refreshVisibleCalendarCells(wrapper, today, pageLectures);
       })
       .catch((error) => {
@@ -392,7 +392,7 @@ function cancelApply(cancelId, qustnrSn, gubun = "mentoLec") {
           } else {
             alert("강의날짜 하루 전날부터는 취소가 불가능 합니다.");
           }
-          LectureCache.clearHistorySessionCache();
+          Cache.clearHistorySessionCache();
           location.reload();
         } else {
           alert("삭제에 실패하였습니다.");
@@ -417,14 +417,14 @@ async function updateCalendarLectureElement(ev) {
 
   try {
     if (Utils.isBeforeCurrentWeek(lecture)) {
-      const eventDetails = await LectureService.getLectureDetail(link.href, {
+      const eventDetails = await Service.getLectureDetail(link.href, {
         requiredFields: CALENDAR_BASE_DETAIL_FIELDS,
       });
       renderCalendarLecture(ev, eventDetails);
       return;
     }
 
-    const eventDetails = await LectureService.getLectureDetail(link.href, {
+    const eventDetails = await Service.getLectureDetail(link.href, {
       requiredFields: CALENDAR_CURRENT_DETAIL_FIELDS,
     });
     renderCalendarLecture(ev, eventDetails);

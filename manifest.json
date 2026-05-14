@@ -44,9 +44,9 @@
         "src/utils.js",
         "src/client.js",
         "src/service.js",
-        "src/calendar.js"
+        "src/pages/calendar.js"
       ],
-      "css": ["src/calendar.css"]
+      "css": ["src/pages/page.css"]
     },
     {
       "matches": [
@@ -61,9 +61,9 @@
         "src/utils.js",
         "src/client.js",
         "src/service.js",
-        "src/lecture-list.js"
+        "src/pages/lecture-list.js"
       ],
-      "css": ["src/calendar.css"]
+      "css": ["src/pages/page.css"]
     },
     {
       "matches": [
@@ -78,7 +78,7 @@
         "src/utils.js",
         "src/client.js",
         "src/service.js",
-        "src/lecture-detail.js"
+        "src/pages/lecture-detail.js"
       ]
     }
   ],

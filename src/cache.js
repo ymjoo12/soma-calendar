@@ -1,4 +1,4 @@
-const LectureCache = (() => {
+const Cache = (() => {
   const LECTURE_RECORD_CACHE_PREFIX = "soma-lecture-record:";
   const LECTURE_ORDER_CACHE_PREFIX = "soma-lecture-order:";
   const LECTURE_PAST_STATE_PREFIX = "soma-lecture-past-state:";

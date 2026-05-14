@@ -15,7 +15,7 @@ let rowOnlineStatusPromise = null;
 let onlineFilterUpdateQueued = false;
 
 function getLectureListItems() {
-  return LectureService.getLectureListItemsFromDocument(document);
+  return Service.getLectureListItemsFromDocument(document);
 }
 
 async function loadAllRowOnlineStatuses() {
@@ -28,7 +28,7 @@ async function loadAllRowOnlineStatuses() {
     LECTURE_DETAIL_CONCURRENCY_LIMIT,
     async ({ row, lecture }) => {
       try {
-        const detail = await LectureService.getLectureDetail(lecture.url, {
+        const detail = await Service.getLectureDetail(lecture.url, {
           requiredFields: ["isOnline"],
         });
         rowIsOnlineMap.set(row, detail?.isOnline ?? null);
@@ -228,7 +228,7 @@ async function enrichCalendarPopup(item, token) {
   renderCalendarPopupDetail(container, { loading: true });
 
   try {
-    const detail = await LectureService.getLectureDetail(detailLink.href, {
+    const detail = await Service.getLectureDetail(detailLink.href, {
       forceRefresh: true,
       requiredFields: [
         "location",
@@ -350,7 +350,7 @@ if (Utils.isBusanCenterPage() && currentOnlineFilter !== "all") {
   applyOnlineFilter();
 }
 
-LectureService.getAllLectures().then((lectures) => {
+Service.getAllLectures().then((lectures) => {
   const lecturesDictionary = Utils.convertLectureDictionary(lectures);
 
   const popupElement = document.createElement("div");

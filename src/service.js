@@ -1,12 +1,12 @@
-const LectureService = (() => {
+const Service = (() => {
   // Lecture identity
   function getLectureCacheIds(lectures) {
-    return new Set(lectures.map(LectureCache.getLectureRecordId));
+    return new Set(lectures.map(Cache.getLectureRecordId));
   }
 
   function hasLectureCacheHit(cacheIds, lectures) {
     return lectures.some((lecture) =>
-      cacheIds.has(LectureCache.getLectureRecordId(lecture)),
+      cacheIds.has(Cache.getLectureRecordId(lecture)),
     );
   }
 
@@ -15,11 +15,11 @@ const LectureService = (() => {
     const lectureMap = new Map();
     for (const lectureGroup of lectureGroups) {
       for (const lecture of lectureGroup) {
-        const key = LectureCache.getLectureRecordId(lecture);
-        const record = LectureCache.readLectureRecord(key);
+        const key = Cache.getLectureRecordId(lecture);
+        const record = Cache.readLectureRecord(key);
         lectureMap.set(
           key,
-          record ? LectureCache.getLectureObjectFromRecord(record) : lecture,
+          record ? Cache.getLectureObjectFromRecord(record) : lecture,
         );
       }
     }
@@ -30,14 +30,14 @@ const LectureService = (() => {
     return Client.parseLectureListDocument(container).map(
       ({ row, lecture }) => ({
         row,
-        lecture: LectureCache.updateLectureCache(lecture),
+        lecture: Cache.updateLectureCache(lecture),
       }),
     );
   }
 
   function getLectureFromDetailDocument(container, url = location.href) {
     const lecture = Client.parseLectureDetailDocument(container);
-    return LectureCache.updateLectureCache({
+    return Cache.updateLectureCache({
       ...lecture,
       lectureId: Utils.getLectureId(url),
       url: Utils.setPageIndexToOne(url),
@@ -54,31 +54,27 @@ const LectureService = (() => {
 
   async function getLectureHistoryHead(path) {
     const firstPage = await Client.fetchLectureHistoryHead(path);
-    LectureCache.writeHistoryPageCache(path, PAGE_ONE, firstPage.lectures);
+    Cache.writeHistoryPageCache(path, PAGE_ONE, firstPage.lectures);
     return firstPage;
   }
 
   async function getLecturePage(path, page, options = {}) {
     if (!options.forceRefresh) {
-      const cached = LectureCache.readHistoryPageCache(
-        path,
-        page,
-        options.totalPages,
-      );
+      const cached = Cache.readHistoryPageCache(path, page, options.totalPages);
       if (cached) {
         return cached;
       }
     }
 
     const lectures = await Client.fetchLecturePage(path, page);
-    LectureCache.writeHistoryPageCache(path, page, lectures);
+    Cache.writeHistoryPageCache(path, page, lectures);
     return lectures;
   }
 
   function loadLectureDetail(key, requestUrl) {
-    return LectureCache.loadLectureDetailRequest(key, () =>
+    return Cache.loadLectureDetailRequest(key, () =>
       Client.fetchLectureDetail(requestUrl).then((detail) =>
-        LectureCache.updateLectureCache({
+        Cache.updateLectureCache({
           ...detail,
           lectureId: key,
           url: requestUrl,
@@ -89,18 +85,15 @@ const LectureService = (() => {
 
   async function getLectureDetail(url, options = {}) {
     const requiredFields = options.requiredFields ?? LECTURE_RECORD_FIELDS;
-    const key = LectureCache.getLectureDetailCacheKey(url);
+    const key = Cache.getLectureDetailCacheKey(url);
 
-    const cachedPast = LectureCache.getCachedPastLectureFields(
-      url,
-      requiredFields,
-    );
+    const cachedPast = Cache.getCachedPastLectureFields(url, requiredFields);
     if (cachedPast) {
       return cachedPast;
     }
 
     if (!options.forceRefresh) {
-      const cached = LectureCache.getCachedLectureFields(url, requiredFields);
+      const cached = Cache.getCachedLectureFields(url, requiredFields);
       if (cached) {
         return cached;
       }
@@ -121,7 +114,7 @@ const LectureService = (() => {
       (lecture) => lecture.startAt < startDate,
     );
     if (pastLectures.length > 0) {
-      LectureCache.writePastLectureCache(path, pastLectures);
+      Cache.writePastLectureCache(path, pastLectures);
     }
     return pastLectures;
   }
@@ -160,7 +153,7 @@ const LectureService = (() => {
     }
 
     if (!foundCurrentOrFutureLecture) {
-      LectureCache.markPastLectureCacheComplete(path);
+      Cache.markPastLectureCacheComplete(path);
     }
   }
 
@@ -177,7 +170,7 @@ const LectureService = (() => {
     }
 
     const freshLectures = [];
-    const cachedPast = LectureCache.readPastLectureCache(path);
+    const cachedPast = Cache.readPastLectureCache(path);
     const hasFreshPastCache = cachedPast?.complete === true;
     const cachedPastIds = getLectureCacheIds(cachedPast?.lectures ?? []);
     let firstPastPage = null;
@@ -211,7 +204,7 @@ const LectureService = (() => {
     }
 
     if (firstPastPage === null) {
-      LectureCache.markPastLectureCacheComplete(path);
+      Cache.markPastLectureCacheComplete(path);
     }
 
     return {
@@ -219,7 +212,7 @@ const LectureService = (() => {
         freshLectures,
         firstPastPage === null
           ? []
-          : LectureCache.getCachedPastLectures(path, startDate),
+          : Cache.getCachedPastLectures(path, startDate),
       ),
       loadPastLectures:
         firstPastPage !== null && !hasFreshPastCache
@@ -241,7 +234,7 @@ const LectureService = (() => {
     const path = Utils.getLectureHistoryPath();
     const firstPage = await getLectureHistoryHead(path);
     const totalPages = firstPage.totalPages;
-    const cachedPast = LectureCache.readPastLectureCache(path);
+    const cachedPast = Cache.readPastLectureCache(path);
     const hasFreshPastCache = cachedPast?.complete === true;
     const cachedPastIds = getLectureCacheIds(cachedPast?.lectures ?? []);
     const startDate = Utils.getTodayStartDate();
@@ -272,14 +265,12 @@ const LectureService = (() => {
     }
 
     if (fetchedAllPages) {
-      LectureCache.markPastLectureCacheComplete(path);
+      Cache.markPastLectureCacheComplete(path);
     }
 
     return updateLectures(
       lectures,
-      hasFreshPastCache
-        ? LectureCache.getCachedPastLectures(path, startDate)
-        : [],
+      hasFreshPastCache ? Cache.getCachedPastLectures(path, startDate) : [],
     );
   }
 

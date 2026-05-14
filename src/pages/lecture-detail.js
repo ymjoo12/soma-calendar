@@ -1,5 +1,5 @@
 // Overlap warning
-LectureService.getAllLectures().then((lectures) => {
+Service.getAllLectures().then((lectures) => {
   const lecturesDictionary =
     Utils.convertLectureDictionaryWithoutDate(lectures);
   const thisLectureId = Utils.getLectureId(location.href);
@@ -9,7 +9,7 @@ LectureService.getAllLectures().then((lectures) => {
     }
   }
 
-  const lecture = LectureService.getLectureFromDetailDocument(document);
+  const lecture = Service.getLectureFromDetailDocument(document);
   const datePart = lecture.dateStr?.split("(")[0].trim();
   const [startTime, endTime] = lecture.timeRangeStr?.split(" ~ ") ?? [];
   if (!datePart || !startTime || !endTime) {
