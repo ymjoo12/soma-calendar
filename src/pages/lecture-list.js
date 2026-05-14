@@ -229,7 +229,6 @@ async function enrichCalendarPopup(item, token) {
 
   try {
     const detail = await Service.getLectureDetail(detailLink.href, {
-      forceRefresh: true,
       requiredFields: [
         "location",
         "timeStr",

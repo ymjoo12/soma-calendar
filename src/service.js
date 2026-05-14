@@ -59,11 +59,9 @@ const Service = (() => {
   }
 
   async function getLecturePage(path, page, options = {}) {
-    if (!options.forceRefresh) {
-      const cached = Cache.readHistoryPageCache(path, page, options.totalPages);
-      if (cached) {
-        return cached;
-      }
+    const cached = Cache.readHistoryPageCache(path, page, options.totalPages);
+    if (cached) {
+      return cached;
     }
 
     const lectures = await Client.fetchLecturePage(path, page);
@@ -92,11 +90,9 @@ const Service = (() => {
       return cachedPast;
     }
 
-    if (!options.forceRefresh) {
-      const cached = Cache.getCachedLectureFields(url, requiredFields);
-      if (cached) {
-        return cached;
-      }
+    const cached = Cache.getCachedLectureFields(url, requiredFields);
+    if (cached) {
+      return cached;
     }
 
     return loadLectureDetail(key, url);
