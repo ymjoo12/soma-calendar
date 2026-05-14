@@ -259,7 +259,7 @@ async function generateCalendarElement() {
 }
 
 async function main() {
-  // The site uses different tab counts on Seoul and Busan history pages.
+  // Support both tab-count selectors so the calendar can mount when the history page tab layout changes.
   const target =
     document.querySelector("#contentsList > div > div > ul.tabs-st1.col2") ||
     document.querySelector("#contentsList > div > div > ul.tabs-st1.col3");
