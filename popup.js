@@ -1,4 +1,4 @@
-// popup.js
+// Extension popup
 
 const STORE_LINKS = {
   chrome:

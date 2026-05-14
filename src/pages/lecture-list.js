@@ -315,14 +315,14 @@ function observeCalendarPopups() {
 }
 
 // Overlap warnings
-function renderConflictLectures(popupElement, conflictingLectures) {
-  popupElement.replaceChildren();
+function renderOverlapPopup(overlapPopupElement, overlappingLectures) {
+  overlapPopupElement.replaceChildren();
 
   const title = document.createElement("h4");
   title.textContent = "겹치는 멘토링 목록";
-  popupElement.appendChild(title);
+  overlapPopupElement.appendChild(title);
 
-  for (const lecture of conflictingLectures) {
+  for (const lecture of overlappingLectures) {
     const lectureElement = document.createElement("div");
     lectureElement.className = "overlap-lecture";
 
@@ -338,7 +338,7 @@ function renderConflictLectures(popupElement, conflictingLectures) {
     timeRow.textContent = `일시: ${lecture.dateStr} ${lecture.timeRangeStr}`;
 
     lectureElement.append(titleRow, authorRow, timeRow);
-    popupElement.appendChild(lectureElement);
+    overlapPopupElement.appendChild(lectureElement);
   }
 }
 
@@ -353,9 +353,9 @@ if (Utils.isBusanCenterPage() && currentOnlineFilter !== "all") {
 Service.getAllLectures().then((lectures) => {
   const lecturesDictionary = Utils.convertLectureDictionary(lectures);
 
-  const popupElement = document.createElement("div");
-  popupElement.className = "overlap-popup";
-  document.body.appendChild(popupElement);
+  const overlapPopupElement = document.createElement("div");
+  overlapPopupElement.className = "overlap-popup";
+  document.body.appendChild(overlapPopupElement);
 
   for (const {
     row: lectureRow,
@@ -370,7 +370,7 @@ Service.getAllLectures().then((lectures) => {
     let targetList = lecturesDictionary[datePart];
     let [startMin, endMin] = timePart.split(" ~ ");
     let hasConflict = false;
-    let conflictingLectures = [];
+    let overlappingLectures = [];
 
     for (let j = 0; j < targetList.length; j++) {
       let [targetStartMin, targetEndMin] = targetList[j].split(" ~ ");
@@ -389,7 +389,7 @@ Service.getAllLectures().then((lectures) => {
 
       if (conflictLecture) {
         hasConflict = true;
-        conflictingLectures.push(conflictLecture);
+        overlappingLectures.push(conflictLecture);
       }
     }
 
@@ -399,33 +399,35 @@ Service.getAllLectures().then((lectures) => {
       lectureRow.querySelector(".tit").style.color = "red";
 
       lectureRow.addEventListener("mousemove", (e) => {
-        renderConflictLectures(popupElement, conflictingLectures);
-        popupElement.style.display = "block";
+        renderOverlapPopup(overlapPopupElement, overlappingLectures);
+        overlapPopupElement.style.display = "block";
 
         const offset = 15;
-        popupElement.style.left = e.clientX + offset + "px";
-        popupElement.style.top = e.clientY + offset + "px";
+        overlapPopupElement.style.left = e.clientX + offset + "px";
+        overlapPopupElement.style.top = e.clientY + offset + "px";
 
-        const popupRect = popupElement.getBoundingClientRect();
-        if (popupRect.right > window.innerWidth) {
-          popupElement.style.left = e.clientX - popupRect.width - offset + "px";
+        const overlapPopupRect = overlapPopupElement.getBoundingClientRect();
+        if (overlapPopupRect.right > window.innerWidth) {
+          overlapPopupElement.style.left =
+            e.clientX - overlapPopupRect.width - offset + "px";
         }
-        if (popupRect.bottom > window.innerHeight) {
-          popupElement.style.top = e.clientY - popupRect.height - offset + "px";
+        if (overlapPopupRect.bottom > window.innerHeight) {
+          overlapPopupElement.style.top =
+            e.clientY - overlapPopupRect.height - offset + "px";
         }
       });
 
       lectureRow.addEventListener("mouseleave", () => {
-        popupElement.style.display = "none";
+        overlapPopupElement.style.display = "none";
       });
     }
   }
 
   document.addEventListener("scroll", () => {
-    if (popupElement.style.display === "block") {
+    if (overlapPopupElement.style.display === "block") {
       const activeItem = document.querySelector(".conflict-item:hover");
       if (!activeItem) {
-        popupElement.style.display = "none";
+        overlapPopupElement.style.display = "none";
       }
     }
   });
