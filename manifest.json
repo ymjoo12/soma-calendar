@@ -29,7 +29,7 @@
         "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/view.do*",
         "https://swmaestro.ai/busan/sw/mypage/mentoLec/view.do*"
       ],
-      "js": ["src/cache.js"]
+      "js": ["src/constants.js", "src/cache.js"]
     },
     {
       "matches": [
@@ -39,6 +39,7 @@
         "https://swmaestro.ai/busan/sw/mypage/userAnswer/history.do*"
       ],
       "js": [
+        "src/constants.js",
         "src/cache.js",
         "src/utils.js",
         "src/client.js",
@@ -55,6 +56,7 @@
         "https://swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*"
       ],
       "js": [
+        "src/constants.js",
         "src/cache.js",
         "src/utils.js",
         "src/client.js",
@@ -71,6 +73,7 @@
         "https://swmaestro.ai/busan/sw/mypage/mentoLec/view.do*"
       ],
       "js": [
+        "src/constants.js",
         "src/cache.js",
         "src/utils.js",
         "src/client.js",
