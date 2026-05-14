@@ -369,7 +369,7 @@ Service.getAllLectures().then((lectures) => {
 
     let targetList = lecturesDictionary[datePart];
     let [startMin, endMin] = timePart.split(" ~ ");
-    let hasConflict = false;
+    let hasOverlap = false;
     let overlappingLectures = [];
 
     for (let j = 0; j < targetList.length; j++) {
@@ -383,17 +383,17 @@ Service.getAllLectures().then((lectures) => {
         continue;
       }
 
-      const conflictLecture = lectures.find(
+      const overlappingLecture = lectures.find(
         (lec) => lec.dateStr === datePart && lec.timeRangeStr === targetList[j],
       );
 
-      if (conflictLecture) {
-        hasConflict = true;
-        overlappingLectures.push(conflictLecture);
+      if (overlappingLecture) {
+        hasOverlap = true;
+        overlappingLectures.push(overlappingLecture);
       }
     }
 
-    if (hasConflict) {
+    if (hasOverlap) {
       lectureRow.classList.add("conflict-item");
       lectureRow.style.color = "red";
       lectureRow.querySelector(".tit").style.color = "red";
