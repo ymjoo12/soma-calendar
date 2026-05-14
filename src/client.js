@@ -1,4 +1,4 @@
-const SomaApi = (() => {
+const Client = (() => {
   // Shared parsing
   function parseHtmlDocument(html) {
     return new DOMParser().parseFromString(html, "text/html");

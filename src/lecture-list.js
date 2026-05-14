@@ -22,7 +22,7 @@ function getListRows() {
 
 function updateLectureListPageCache() {
   for (const row of getListRows()) {
-    const lecture = SomaApi.parseLectureListRow(row);
+    const lecture = Client.parseLectureListRow(row);
     if (lecture) {
       updateLectureCache(lecture);
     }
@@ -38,7 +38,7 @@ async function loadAllRowOnlineStatuses() {
     Array.from(getListRows()),
     LECTURE_DETAIL_CONCURRENCY_LIMIT,
     async (row) => {
-      const lecture = SomaApi.parseLectureListRow(row);
+      const lecture = Client.parseLectureListRow(row);
       if (!lecture) return;
 
       try {
@@ -373,7 +373,7 @@ getAllLectures().then((lectures) => {
   document.body.appendChild(popupElement);
 
   for (const lectureRow of getListRows()) {
-    const rowLecture = SomaApi.parseLectureListRow(lectureRow);
+    const rowLecture = Client.parseLectureListRow(lectureRow);
     if (!rowLecture) {
       continue;
     }

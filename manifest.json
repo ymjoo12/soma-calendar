@@ -41,8 +41,8 @@
       "js": [
         "src/cache.js",
         "src/utils.js",
-        "src/api.js",
-        "src/lecture-service.js",
+        "src/client.js",
+        "src/service.js",
         "src/calendar.js"
       ],
       "css": ["src/calendar.css"]
@@ -57,8 +57,8 @@
       "js": [
         "src/cache.js",
         "src/utils.js",
-        "src/api.js",
-        "src/lecture-service.js",
+        "src/client.js",
+        "src/service.js",
         "src/lecture-list.js"
       ],
       "css": ["src/calendar.css"]
@@ -73,8 +73,8 @@
       "js": [
         "src/cache.js",
         "src/utils.js",
-        "src/api.js",
-        "src/lecture-service.js",
+        "src/client.js",
+        "src/service.js",
         "src/lecture-detail.js"
       ]
     }

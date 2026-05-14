@@ -32,7 +32,7 @@ function isPastLecturePage(lectures, startDate) {
 }
 
 async function getLectureHistoryHead(path) {
-  const firstPage = await SomaApi.fetchLectureHistoryHead(path);
+  const firstPage = await Client.fetchLectureHistoryHead(path);
   writeHistoryPageCache(path, PAGE_ONE, firstPage.lectures);
   return firstPage;
 }
@@ -45,7 +45,7 @@ async function getLecturePage(path, page, options = {}) {
     }
   }
 
-  const lectures = await SomaApi.fetchLecturePage(path, page);
+  const lectures = await Client.fetchLecturePage(path, page);
   writeHistoryPageCache(path, page, lectures);
   return lectures;
 }
@@ -55,7 +55,7 @@ function loadLectureDetail(key, requestUrl) {
     return lectureDetailRequests.get(key);
   }
 
-  const request = SomaApi.fetchLectureDetail(requestUrl)
+  const request = Client.fetchLectureDetail(requestUrl)
     .then((detail) => {
       const record = writeLectureRecord({
         ...detail,
