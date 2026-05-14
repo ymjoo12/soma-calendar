@@ -1,3 +1,4 @@
+// Overlap warning
 getAllLectures().then((lectures) => {
   const lecturesDictionary = convertLectureDictionaryWithoutDate(lectures);
   const thisLectureId = getLectureId(location.href);
@@ -7,13 +8,12 @@ getAllLectures().then((lectures) => {
     }
   }
 
-  const timeStr = document.querySelector(
-    " div.top > div:nth-child(3) > div:nth-child(2) > div.c",
-  ).innerText;
-  let [datePart, timePart] = timeStr.split(/\s{2,}/);
-  const [startTime, endTime] = timePart.replace(/시/g, "").split(" ~ ");
-
-  datePart = datePart.replaceAll(".", "-");
+  const lecture = SomaApi.parseLectureDetailDocument(document);
+  const datePart = lecture.dateStr?.split("(")[0].trim();
+  const [startTime, endTime] = lecture.timeRangeStr?.split(" ~ ") ?? [];
+  if (!datePart || !startTime || !endTime) {
+    return;
+  }
 
   if (!lecturesDictionary.hasOwnProperty(datePart)) {
     return;

@@ -67,8 +67,10 @@ const LEGACY_CACHE_PREFIXES = [
   "soma-lecture-first-page:",
 ];
 const lectureRecordMemory = new Map();
+const lectureObjectMemory = new Map();
 const lectureDetailRequests = new Map();
 
+// Cache keys
 function getLectureDetailCacheKey(url) {
   const parsedUrl = new URL(url, location.href);
   return parsedUrl.searchParams.get("qustnrSn") || parsedUrl.toString();
@@ -90,6 +92,7 @@ function getLecturePastStateKey(path) {
   return LECTURE_PAST_STATE_PREFIX + path;
 }
 
+// Lecture records
 function getStoredLectureRecord(storage, id) {
   try {
     const raw = storage.getItem(getLectureRecordCacheKey(id));
@@ -167,11 +170,34 @@ function readLectureRecord(id) {
   return record;
 }
 
-function getRecordValues(record) {
-  return { ...record.fields };
+function normalizeLectureObject(lecture) {
+  if (
+    typeof normalizeLectureDates === "function" &&
+    typeof lecture.dateStr === "string" &&
+    typeof lecture.timeRangeStr === "string"
+  ) {
+    normalizeLectureDates([lecture]);
+  }
+  return lecture;
 }
 
-function getLectureStartAtFromListFields(fields) {
+function getLectureObjectFromRecord(record) {
+  let lecture = lectureObjectMemory.get(record.id);
+  if (!lecture) {
+    lecture = { lectureId: record.id };
+    lectureObjectMemory.set(record.id, lecture);
+  }
+
+  for (const [field, value] of Object.entries(record.fields)) {
+    if (value !== undefined && value !== null) {
+      lecture[field] = value;
+    }
+  }
+
+  return normalizeLectureObject(lecture);
+}
+
+function getLectureStartAt(fields) {
   if (
     typeof fields.dateStr !== "string" ||
     typeof fields.timeRangeStr !== "string"
@@ -187,38 +213,6 @@ function getLectureStartAtFromListFields(fields) {
 
   const startAt = new Date(`${datePart}T${normalizeTimeStr(startTime)}`);
   return Number.isNaN(startAt.getTime()) ? null : startAt;
-}
-
-function getLectureStartAtFromDetailFields(fields) {
-  if (typeof fields.timeStr !== "string") {
-    return null;
-  }
-
-  const dateMatch = fields.timeStr.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
-  if (!dateMatch) {
-    return null;
-  }
-
-  const [, year, month, day] = dateMatch;
-  const timeText = fields.timeStr.slice(dateMatch.index + dateMatch[0].length);
-  const timeMatch = timeText.match(/(\d{1,2})(?::(\d{2}))?\s*시?/);
-  if (!timeMatch) {
-    return null;
-  }
-
-  const [, hour, minute = "0"] = timeMatch;
-  const datePart = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-  const startAt = new Date(
-    `${datePart}T${normalizeTimeStr(`${hour}:${minute}:0`)}`,
-  );
-  return Number.isNaN(startAt.getTime()) ? null : startAt;
-}
-
-function getLectureStartAt(fields) {
-  return (
-    getLectureStartAtFromListFields(fields) ||
-    getLectureStartAtFromDetailFields(fields)
-  );
 }
 
 function isPastLectureFields(fields) {
@@ -245,7 +239,7 @@ function hasFreshLectureFields(record, fields) {
     return false;
   }
 
-  const values = getRecordValues(record);
+  const values = record.fields;
   return fields.every((field) => {
     const ttl = getLectureFieldTtl(values, field);
     if (ttl <= 0) {
@@ -310,7 +304,7 @@ function getCachedLectureFieldsById(id, requiredFields) {
   if (!record || !hasFreshLectureFields(record, requiredFields)) {
     return null;
   }
-  return getRecordValues(record);
+  return getLectureObjectFromRecord(record);
 }
 
 function getCachedLectureFields(url, requiredFields) {
@@ -329,7 +323,7 @@ function getCachedPastLectureFields(url, requiredFields) {
   ) {
     return null;
   }
-  return getRecordValues(record);
+  return getLectureObjectFromRecord(record);
 }
 
 function getCachedLectureListItem(id) {
@@ -340,6 +334,7 @@ function getCachedLectureListItem(id) {
   return fields;
 }
 
+// History order
 function readLectureOrder(path, type, storage = sessionStorage) {
   const storageKey = getLectureOrderCacheKey(path, type);
   try {
@@ -385,10 +380,6 @@ function writeLectureOrder(path, type, ids, storage = sessionStorage) {
   }
 }
 
-function writeHistoryLatestOrder(path, ids) {
-  writeLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST, ids);
-}
-
 function canReuseHistoryTail(currentIds, orderIds) {
   if (currentIds.length === 0 || orderIds.length === 0) {
     return false;
@@ -414,14 +405,14 @@ function mergeHistoryOrderWithFirstPage(path, firstPageLectures) {
   const orderIds = readLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST);
 
   if (orderIds && canReuseHistoryTail(currentIds, orderIds)) {
-    writeHistoryLatestOrder(path, [
+    writeLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST, [
       ...currentIds,
       ...orderIds.filter((id) => !currentIds.includes(id)),
     ]);
     return;
   }
 
-  writeHistoryLatestOrder(path, currentIds);
+  writeLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST, currentIds);
 }
 
 function mergeHistoryOrderWithPage(path, page, lectures) {
@@ -431,7 +422,7 @@ function mergeHistoryOrderWithPage(path, page, lectures) {
   const nextOrderIds = orderIds.filter((id) => !pageIds.includes(id));
 
   nextOrderIds.splice(pageStartIndex, pageIds.length, ...pageIds);
-  writeHistoryLatestOrder(path, nextOrderIds);
+  writeLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST, nextOrderIds);
 }
 
 function readHistoryPageCache(path, page, totalPages) {
@@ -480,6 +471,7 @@ function writeHistoryPageCache(path, page, lectures) {
   mergeHistoryOrderWithPage(path, page, lectures);
 }
 
+// Past lectures
 function readPastLectureState(path) {
   try {
     const raw = localStorage.getItem(getLecturePastStateKey(path));
@@ -564,76 +556,11 @@ function markPastLectureCacheComplete(path) {
   writePastLectureState(path, true);
 }
 
-async function fetchLecturePageHtml(path, page) {
-  const res = await fetch(path + "&pageIndex=" + page, {
-    credentials: "include",
-  });
-  return res.text();
-}
-
-async function fetchLecturePage(path, page, options = {}) {
-  if (!options.forceRefresh) {
-    const cached = readHistoryPageCache(path, page, options.totalPages);
-    if (cached) {
-      return cached;
-    }
-  }
-
-  const html = await fetchLecturePageHtml(path, page);
-  const lectures = normalizeLectureDates(extractLectureListFromHTML(html));
-  writeHistoryPageCache(path, page, lectures);
-  return lectures;
-}
-
-function fetchLectureDetail(key, requestUrl) {
-  if (lectureDetailRequests.has(key)) {
-    return lectureDetailRequests.get(key);
-  }
-
-  const request = fetch(requestUrl, { credentials: "include" })
-    .then((res) => res.text())
-    .then((html) => {
-      const detail = extractLectureDetailFromHTML(html);
-      writeLectureRecord({
-        ...detail,
-        lectureId: key,
-        url: requestUrl,
-      });
-      return detail;
-    })
-    .finally(() => {
-      lectureDetailRequests.delete(key);
-    });
-
-  lectureDetailRequests.set(key, request);
-  return request;
-}
-
-async function getLectureDetail(url, options = {}) {
-  const requiredFields = options.requiredFields ?? LECTURE_RECORD_FIELDS;
-  const key = getLectureDetailCacheKey(url);
-
-  if (options.preferPastCache) {
-    const cached = getCachedPastLectureFields(url, requiredFields);
-    if (cached) {
-      return cached;
-    }
-  }
-
-  if (!options.forceRefresh) {
-    const cached = getCachedLectureFields(url, requiredFields);
-    if (cached) {
-      return cached;
-    }
-  }
-
-  return fetchLectureDetail(key, url);
-}
-
 function updateLectureCache(lecture) {
-  return writeLectureRecord(lecture);
+  return getLectureObjectFromRecord(writeLectureRecord(lecture));
 }
 
+// Cache clearing
 function removeCacheKeysByPrefix(storage, prefixes) {
   for (let index = storage.length - 1; index >= 0; index--) {
     const key = storage.key(index);
@@ -652,6 +579,7 @@ function clearAllLectureCache() {
   ];
   try {
     lectureRecordMemory.clear();
+    lectureObjectMemory.clear();
     lectureDetailRequests.clear();
     removeCacheKeysByPrefix(sessionStorage, prefixes);
     removeCacheKeysByPrefix(localStorage, prefixes);
@@ -668,6 +596,7 @@ function clearHistorySessionCache() {
   ];
   try {
     lectureRecordMemory.clear();
+    lectureObjectMemory.clear();
     removeCacheKeysByPrefix(sessionStorage, prefixes);
   } catch (error) {
     console.error(error);

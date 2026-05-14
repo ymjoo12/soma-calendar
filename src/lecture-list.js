@@ -14,43 +14,15 @@ const rowIsOnlineMap = new Map();
 let rowOnlineStatusPromise = null;
 let onlineFilterUpdateQueued = false;
 
-function isBusanLecturePage() {
-  return getSwPathPrefix() === "/busan";
-}
-
 function getListRows() {
   return document.querySelectorAll(
     "#listFrm > div.boardlist.mt50 > table > tbody > tr",
   );
 }
 
-function getListRowLecture(row) {
-  const link = row.querySelector('a[href*="mentoLec/view.do"]');
-  const dateTimeText = row
-    .querySelector("td:nth-child(4)")
-    ?.innerText.replace(/\u00a0/g, " ");
-  const [dateStr, timeRangeStr] =
-    dateTimeText
-      ?.split("\n")
-      .map((text) => text.trim())
-      .filter(Boolean) ?? [];
-  const title = row.querySelector(".tit")?.innerText.trim();
-  if (!link || !dateStr || !timeRangeStr) {
-    return null;
-  }
-
-  return {
-    url: setPageIndexToOne(link.href),
-    title,
-    dateStr,
-    timeRangeStr,
-    lectureId: getLectureId(link.href),
-  };
-}
-
 function updateLectureListPageCache() {
   for (const row of getListRows()) {
-    const lecture = getListRowLecture(row);
+    const lecture = SomaApi.parseLectureListRow(row);
     if (lecture) {
       updateLectureCache(lecture);
     }
@@ -66,11 +38,11 @@ async function loadAllRowOnlineStatuses() {
     Array.from(getListRows()),
     LECTURE_DETAIL_CONCURRENCY_LIMIT,
     async (row) => {
-      const link = row.querySelector('a[href*="mentoLec/view.do"]');
-      if (!link) return;
+      const lecture = SomaApi.parseLectureListRow(row);
+      if (!lecture) return;
 
       try {
-        const detail = await getLectureDetail(link.href, {
+        const detail = await getLectureDetail(lecture.url, {
           requiredFields: ["isOnline"],
         });
         rowIsOnlineMap.set(row, detail?.isOnline ?? null);
@@ -113,7 +85,7 @@ function applyOnlineFilter() {
 }
 
 function insertOnlineFilterUI() {
-  if (!isBusanLecturePage()) return;
+  if (!isBusanCenterPage()) return;
 
   const existingTabs = document.querySelector("ul.tabs-sort");
   if (!existingTabs) return;
@@ -272,7 +244,6 @@ async function enrichCalendarPopup(item, token) {
   try {
     const detail = await getLectureDetail(detailLink.href, {
       forceRefresh: true,
-      preferPastCache: true,
       requiredFields: [
         "location",
         "timeStr",
@@ -357,6 +328,7 @@ function observeCalendarPopups() {
   }
 }
 
+// Overlap warnings
 function renderConflictLectures(popupElement, conflictingLectures) {
   popupElement.replaceChildren();
 
@@ -384,27 +356,30 @@ function renderConflictLectures(popupElement, conflictingLectures) {
   }
 }
 
-if (isBusanLecturePage()) {
+if (isBusanCenterPage()) {
   insertOnlineFilterUI();
 }
 updateLectureListPageCache();
 
-if (isBusanLecturePage() && currentOnlineFilter !== "all") {
+if (isBusanCenterPage() && currentOnlineFilter !== "all") {
   applyOnlineFilter();
 }
 
 getAllLectures().then((lectures) => {
   const lecturesDictionary = convertLectureDictionary(lectures);
-  const lectureDates = document.querySelectorAll(
-    "#listFrm > div.boardlist.mt50 > table > tbody > tr > td:nth-child(4)",
-  );
 
   const popupElement = document.createElement("div");
   popupElement.className = "overlap-popup";
   document.body.appendChild(popupElement);
 
-  for (let i = 0; i < lectureDates.length; i++) {
-    const [datePart, timePart] = lectureDates[i].innerText.split("\n");
+  for (const lectureRow of getListRows()) {
+    const rowLecture = SomaApi.parseLectureListRow(lectureRow);
+    if (!rowLecture) {
+      continue;
+    }
+
+    const datePart = rowLecture.dateStr;
+    const timePart = rowLecture.timeRangeStr;
     if (!lecturesDictionary.hasOwnProperty(datePart)) {
       continue;
     }
@@ -413,8 +388,6 @@ getAllLectures().then((lectures) => {
     let [startMin, endMin] = timePart.split(" ~ ");
     let hasConflict = false;
     let conflictingLectures = [];
-
-    const lectureRow = lectureDates[i].parentElement;
 
     for (let j = 0; j < targetList.length; j++) {
       let [targetStartMin, targetEndMin] = targetList[j].split(" ~ ");

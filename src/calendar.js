@@ -1,5 +1,19 @@
 let lectures = [];
+const CALENDAR_BASE_DETAIL_FIELDS = [
+  "dateStr",
+  "timeRangeStr",
+  "timeStr",
+  "location",
+  "capacityText",
+];
+const CALENDAR_CURRENT_DETAIL_FIELDS = [
+  ...CALENDAR_BASE_DETAIL_FIELDS,
+  "totalCount",
+  "appliedCount",
+  "isApproved",
+];
 
+// Calendar rendering
 function createCalendarButton(
   className,
   label,
@@ -233,7 +247,7 @@ async function generateCalendarElement() {
   if (calendarLectures.loadPastLectures) {
     calendarLectures
       .loadPastLectures((pageLectures) => {
-        lectures = mergeLectures(lectures, pageLectures);
+        lectures = updateLectures(lectures, pageLectures);
         refreshVisibleCalendarCells(wrapper, today, pageLectures);
       })
       .catch((error) => {
@@ -254,6 +268,7 @@ async function main() {
   target.after(newElement);
 }
 
+// Detail rendering
 function generateGoogleCalendarURL(lecture) {
   const encode = (str) => encodeURIComponent(str).replace(/%20/g, "+");
   const baseUrl = "https://calendar.google.com/calendar/render?action=TEMPLATE";
@@ -270,30 +285,48 @@ function generateGoogleCalendarURL(lecture) {
   return `${baseUrl}${title}${dates}${locationParam}${description}`;
 }
 
-function renderCalendarLectureDetail(ev, lecture, detail) {
-  const { location, capacityText, appliedCount, totalCount, isApproved } =
-    detail;
-  lecture.location = location;
-  if (isApproved !== undefined && isApproved !== null) {
-    lecture.isApproved = isApproved;
+function setLectureText(ev, role, value) {
+  if (value === undefined || value === null) {
+    return;
   }
-
-  const locationElem = ev.querySelector('[data-role="location"]');
-  locationElem.innerText = location;
-  const peopleElem = ev.querySelector('[data-role="people"]');
-  const hasPeopleCounts =
-    /^\d+$/.test(appliedCount) && /^\d+$/.test(totalCount);
-  const peopleText = hasPeopleCounts
-    ? `${appliedCount}명 / ${totalCount}명`
-    : capacityText;
-  peopleElem.innerText =
-    peopleText + (lecture.isApproved ? " [개설 확정]" : " [미승인]");
-  if (!lecture.isApproved && !ev.classList.contains("ended")) {
-    // Keep past lectures visually muted even when approval is missing.
-    peopleElem.style.color = "red";
+  const elem = ev.querySelector(`[data-role="${role}"]`);
+  if (elem) {
+    elem.innerText = value;
   }
 }
 
+function getCalendarPeopleText(lecture) {
+  const hasPeopleCounts =
+    /^\d+$/.test(lecture.appliedCount) && /^\d+$/.test(lecture.totalCount);
+  const peopleText = hasPeopleCounts
+    ? `${lecture.appliedCount}명 / ${lecture.totalCount}명`
+    : lecture.capacityText;
+  if (!peopleText) {
+    return null;
+  }
+  return peopleText + (lecture.isApproved ? " [개설 확정]" : " [미승인]");
+}
+
+function renderCalendarLecture(ev, lecture) {
+  ev.title = lecture.title;
+  setLectureText(ev, "title", lecture.title);
+  setLectureText(ev, "author", lecture.author);
+  setLectureText(ev, "time", lecture.timeRangeStr);
+  setLectureText(ev, "location", lecture.location);
+
+  const peopleElem = ev.querySelector('[data-role="people"]');
+  const peopleText = getCalendarPeopleText(lecture);
+  if (peopleElem && peopleText) {
+    peopleElem.innerText = peopleText;
+    peopleElem.style.color = "";
+    if (!lecture.isApproved && !ev.classList.contains("ended")) {
+      // Keep past lectures visually muted even when approval is missing.
+      peopleElem.style.color = "red";
+    }
+  }
+}
+
+// Actions
 function attachCalendarLectureActions(ev, lecture) {
   if (ev.dataset.actionsAttached === "true") {
     return;
@@ -327,6 +360,52 @@ function attachCalendarLectureActions(ev, lecture) {
   ev.dataset.actionsAttached = "true";
 }
 
+function cancelApply(cancelId, qustnrSn, gubun = "mentoLec") {
+  if (!cancelId || !qustnrSn) {
+    alert("취소할 수 없는 항목입니다.");
+    return;
+  }
+
+  if (typeof window.delDate === "function") {
+    window.delDate(cancelId, qustnrSn, gubun);
+    return;
+  }
+
+  if (confirm("선택된 항목의 접수를 취소 하시겠습니까?")) {
+    fetch(`${getCenterPathPrefix()}/sw/mypage/userAnswer/cancel.json`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        id: cancelId,
+        qustnrSn,
+        gubun,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        const { resultCode, cancelAt } = data;
+        if (resultCode === "success") {
+          if (cancelAt === "Y") {
+            alert("취소 하였습니다.");
+          } else {
+            alert("강의날짜 하루 전날부터는 취소가 불가능 합니다.");
+          }
+          clearHistorySessionCache();
+          location.reload();
+        } else {
+          alert("삭제에 실패하였습니다.");
+        }
+      })
+      .catch((error) => {
+        console.error(error);
+        alert("취소 요청 중 오류가 발생했습니다.");
+      });
+  }
+}
+
+// Entry
 async function updateCalendarLectureElement(ev) {
   const link = ev.querySelector("a");
   const lecture = lectures.find((lec) => lec.url === link?.href);
@@ -339,22 +418,16 @@ async function updateCalendarLectureElement(ev) {
   try {
     if (isBeforeCurrentWeek(lecture)) {
       const eventDetails = await getLectureDetail(link.href, {
-        requiredFields: ["location", "capacityText"],
+        requiredFields: CALENDAR_BASE_DETAIL_FIELDS,
       });
-      renderCalendarLectureDetail(ev, lecture, eventDetails);
+      renderCalendarLecture(ev, eventDetails);
       return;
     }
 
     const eventDetails = await getLectureDetail(link.href, {
-      requiredFields: [
-        "location",
-        "capacityText",
-        "totalCount",
-        "appliedCount",
-        "isApproved",
-      ],
+      requiredFields: CALENDAR_CURRENT_DETAIL_FIELDS,
     });
-    renderCalendarLectureDetail(ev, lecture, eventDetails);
+    renderCalendarLecture(ev, eventDetails);
   } catch (error) {
     console.error(error);
   }
