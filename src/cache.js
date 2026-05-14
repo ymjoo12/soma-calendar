@@ -2,8 +2,10 @@ const Cache = (() => {
   const LECTURE_RECORD_CACHE_PREFIX = "soma-lecture-record:";
   const LECTURE_ORDER_CACHE_PREFIX = "soma-lecture-order:";
   const LECTURE_PAST_STATE_PREFIX = "soma-lecture-past-state:";
+  const LECTURE_CALENDAR_STATE_PREFIX = "soma-lecture-calendar-state:";
   const LECTURE_ORDER_HISTORY_LATEST = "history-latest";
   const LECTURE_ORDER_PAST_LATEST = "past-latest";
+  const LECTURE_ORDER_CALENDAR_CURRENT = "calendar-current";
   const LEGACY_CACHE_PREFIXES = [
     "soma-lecture-detail:",
     "soma-history-item:",
@@ -37,6 +39,10 @@ const Cache = (() => {
 
   function getLecturePastStateKey(path) {
     return LECTURE_PAST_STATE_PREFIX + path;
+  }
+
+  function getLectureCalendarStateKey(path) {
+    return LECTURE_CALENDAR_STATE_PREFIX + path;
   }
 
   // Lecture records
@@ -414,6 +420,10 @@ const Cache = (() => {
     return Utils.normalizeLectureDates(lectures);
   }
 
+  function getCachedHistoryLectureIds(path) {
+    return readLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST) ?? [];
+  }
+
   function writeHistoryPageCache(path, page, lectures) {
     writeLectureRecords(lectures);
 
@@ -452,10 +462,51 @@ const Cache = (() => {
     }
   }
 
+  function readCalendarLectureState(path) {
+    try {
+      const raw = localStorage.getItem(getLectureCalendarStateKey(path));
+      if (!raw) {
+        return { complete: false };
+      }
+
+      const cached = JSON.parse(raw);
+      if (
+        cached.version !== LECTURE_CACHE_VERSION ||
+        typeof cached.savedAt !== "number" ||
+        Date.now() - cached.savedAt > LECTURE_PAST_CACHE_TTL_MS
+      ) {
+        localStorage.removeItem(getLectureCalendarStateKey(path));
+        return { complete: false };
+      }
+
+      return {
+        complete: cached.complete === true,
+      };
+    } catch (error) {
+      console.error(error);
+      return { complete: false };
+    }
+  }
+
   function writePastLectureState(path, complete) {
     try {
       localStorage.setItem(
         getLecturePastStateKey(path),
+        JSON.stringify({
+          version: LECTURE_CACHE_VERSION,
+          savedAt: Date.now(),
+          complete,
+        }),
+      );
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  function writeCalendarLectureState(path, complete) {
+    try {
+      localStorage.setItem(
+        getLectureCalendarStateKey(path),
         JSON.stringify({
           version: LECTURE_CACHE_VERSION,
           savedAt: Date.now(),
@@ -480,6 +531,68 @@ const Cache = (() => {
   function getCachedPastLectures(path, startDate) {
     return readPastLectureCache(path).lectures.filter(
       (lecture) => lecture.startAt < startDate,
+    );
+  }
+
+  function getCachedCalendarLectureIds(path) {
+    return (
+      readLectureOrder(path, LECTURE_ORDER_CALENDAR_CURRENT, localStorage) ?? []
+    );
+  }
+
+  function writeCalendarLectureCache(path, lectures, startDate) {
+    const currentLectures = lectures.filter(
+      (lecture) => lecture.startAt >= startDate,
+    );
+    if (currentLectures.length === 0) {
+      return;
+    }
+
+    writeLectureRecords(currentLectures);
+    const currentIds = currentLectures.map(getLectureRecordId);
+    const existingIds = getCachedCalendarLectureIds(path);
+    const lecturesById = new Map();
+    const unknownIds = [];
+    for (const id of existingIds) {
+      const record = readLectureRecord(id);
+      const lecture = record ? getLectureObjectFromRecord(record) : null;
+      if (lecture && lecture.startAt >= startDate) {
+        lecturesById.set(id, lecture);
+      } else if (!lecture) {
+        unknownIds.push(id);
+      }
+    }
+    for (const lecture of currentLectures) {
+      lecturesById.set(getLectureRecordId(lecture), lecture);
+    }
+
+    writeLectureOrder(
+      path,
+      LECTURE_ORDER_CALENDAR_CURRENT,
+      [
+        ...Utils.normalizeLectureDates(Array.from(lecturesById.values())).map(
+          getLectureRecordId,
+        ),
+        ...unknownIds.filter((id) => !currentIds.includes(id)),
+      ],
+      localStorage,
+    );
+  }
+
+  function removeCalendarLectureIds(path, ids) {
+    const removeIds = new Set(ids);
+    if (removeIds.size === 0) {
+      return;
+    }
+
+    const existingIds =
+      readLectureOrder(path, LECTURE_ORDER_CALENDAR_CURRENT, localStorage) ??
+      [];
+    writeLectureOrder(
+      path,
+      LECTURE_ORDER_CALENDAR_CURRENT,
+      existingIds.filter((id) => !removeIds.has(id)),
+      localStorage,
     );
   }
 
@@ -508,6 +621,14 @@ const Cache = (() => {
 
   function markPastLectureCacheComplete(path) {
     writePastLectureState(path, true);
+  }
+
+  function hasCompleteCalendarLectureCache(path) {
+    return readCalendarLectureState(path).complete;
+  }
+
+  function markCalendarLectureCacheComplete(path) {
+    writeCalendarLectureState(path, true);
   }
 
   function updateLectureCache(lecture) {
@@ -543,6 +664,7 @@ const Cache = (() => {
       LECTURE_RECORD_CACHE_PREFIX,
       LECTURE_ORDER_CACHE_PREFIX,
       LECTURE_PAST_STATE_PREFIX,
+      LECTURE_CALENDAR_STATE_PREFIX,
       ...LEGACY_CACHE_PREFIXES,
     ];
     try {
@@ -586,18 +708,24 @@ const Cache = (() => {
   return {
     clearAllLectureCache,
     clearHistorySessionCache,
+    getCachedCalendarLectureIds,
+    getCachedHistoryLectureIds,
     getCachedLectureFields,
     getCachedPastLectureFields,
     getCachedPastLectures,
     getLectureDetailCacheKey,
     getLectureObjectFromRecord,
     getLectureRecordId,
+    hasCompleteCalendarLectureCache,
     loadLectureDetailRequest,
+    markCalendarLectureCacheComplete,
     markPastLectureCacheComplete,
     readHistoryPageCache,
     readLectureRecord,
     readPastLectureCache,
+    removeCalendarLectureIds,
     updateLectureCache,
+    writeCalendarLectureCache,
     writeHistoryPageCache,
     writePastLectureCache,
   };
