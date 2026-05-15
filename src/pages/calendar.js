@@ -152,9 +152,54 @@ function formatDateKey(date) {
   return `${year}-${month}-${day}`;
 }
 
-function refreshVisibleCalendarCells(wrapper, today, changedLectures) {
+function getRenderedCalendarLecture(ev) {
+  const url = ev.querySelector("a")?.href;
+  const location = ev.querySelector('[data-role="location"]')?.innerText;
+  if (!url || !location || location === "장소 로딩중..") {
+    return null;
+  }
+
+  const peopleElem = ev.querySelector('[data-role="people"]');
+  return {
+    url,
+    title: ev.querySelector('[data-role="title"]')?.innerText,
+    author: ev.querySelector('[data-role="author"]')?.innerText,
+    timeRangeStr: ev.querySelector('[data-role="time"]')?.innerText,
+    location,
+    peopleText: peopleElem?.innerText,
+    peopleColor: peopleElem?.style.color,
+  };
+}
+
+function renderPreservedCalendarLecture(ev, rendered) {
+  ev.title = rendered.title;
+  setLectureText(ev, "title", rendered.title);
+  setLectureText(ev, "author", rendered.author);
+  setLectureText(ev, "time", rendered.timeRangeStr);
+  setLectureText(ev, "location", rendered.location);
+
+  const peopleElem = ev.querySelector('[data-role="people"]');
+  if (peopleElem && rendered.peopleText) {
+    peopleElem.innerText = rendered.peopleText;
+    peopleElem.style.color = rendered.peopleColor || "";
+  }
+}
+
+function refreshVisibleCalendarCells(
+  wrapper,
+  today,
+  changedLectures,
+  extraDateKeys = [],
+  knownLectures = [],
+) {
   const changedDateKeys = new Set(
     changedLectures.map((lecture) => formatDateKey(lecture.startAt)),
+  );
+  for (const dateKey of extraDateKeys) {
+    changedDateKeys.add(dateKey);
+  }
+  const knownLectureByUrl = new Map(
+    knownLectures.map((lecture) => [lecture.url, lecture]),
   );
   const cells = wrapper.querySelectorAll(".calendar-cell[data-calendar-date]");
   const refreshedEventElems = [];
@@ -162,18 +207,42 @@ function refreshVisibleCalendarCells(wrapper, today, changedLectures) {
     if (!changedDateKeys.has(cell.dataset.calendarDate)) {
       continue;
     }
+    const renderedLectureByUrl = new Map();
+    for (const oldEventElem of cell.querySelectorAll(".calendar-lecture")) {
+      const renderedLecture = getRenderedCalendarLecture(oldEventElem);
+      if (renderedLecture) {
+        renderedLectureByUrl.set(renderedLecture.url, renderedLecture);
+      }
+    }
+
     const date = new Date(`${cell.dataset.calendarDate}T00:00:00`);
     const newCell = createDayCell(date, today, lectures);
     if (cell.dataset.pastCell) {
       newCell.dataset.pastCell = cell.dataset.pastCell;
     }
     cell.replaceWith(newCell);
-    refreshedEventElems.push(...newCell.querySelectorAll(".calendar-lecture"));
+    const newEventElems = newCell.querySelectorAll(".calendar-lecture");
+    for (const newEventElem of newEventElems) {
+      const knownLecture = knownLectureByUrl.get(
+        newEventElem.querySelector("a")?.href,
+      );
+      if (knownLecture) {
+        renderCalendarLecture(newEventElem, knownLecture);
+        continue;
+      }
+      const renderedLecture = renderedLectureByUrl.get(
+        newEventElem.querySelector("a")?.href,
+      );
+      if (renderedLecture) {
+        renderPreservedCalendarLecture(newEventElem, renderedLecture);
+      }
+    }
+    refreshedEventElems.push(...newEventElems);
   }
   if (refreshedEventElems.length === 0) {
     return;
   }
-  updateCalendarElement(refreshedEventElems).catch((error) => {
+  updateCalendarElement(refreshedEventElems, wrapper, today).catch((error) => {
     console.error(error);
   });
 }
@@ -207,7 +276,7 @@ function createPastButton(wrapper, startDate, today) {
       addedEventElems.push(...dayCell.querySelectorAll(".calendar-lecture"));
     }
     resetBtn.hidden = false;
-    updateCalendarElement(addedEventElems).catch((error) => {
+    updateCalendarElement(addedEventElems, wrapper, today).catch((error) => {
       console.error(error);
     });
   });
@@ -406,44 +475,117 @@ function cancelApply(cancelId, qustnrSn, gubun = "mentoLec") {
 }
 
 // Entry
-async function updateCalendarLectureElement(ev) {
+function getLectureByUrl(url) {
+  return lectures.find((lec) => lec.url === url);
+}
+
+function updateCalendarLectureRender(
+  wrapper,
+  today,
+  ev,
+  previousDateKey,
+  previousStartAt,
+  previousEndAt,
+  eventDetails,
+) {
+  lectures = Service.updateLectures(lectures, [eventDetails]);
+  const lecture = getLectureByUrl(eventDetails.url) || eventDetails;
+  if (!lecture.startAt || !lecture.endAt) {
+    renderCalendarLecture(ev, lecture);
+    return;
+  }
+
+  const nextDateKey = formatDateKey(lecture.startAt);
+  const hasScheduleChange =
+    previousDateKey !== nextDateKey ||
+    previousStartAt !== lecture.startAt.getTime() ||
+    previousEndAt !== lecture.endAt.getTime();
+
+  if (hasScheduleChange && wrapper) {
+    refreshVisibleCalendarCells(
+      wrapper,
+      today,
+      [lecture],
+      [previousDateKey],
+      [lecture],
+    );
+    return;
+  }
+
+  renderCalendarLecture(ev, lecture);
+}
+
+async function updateCalendarLectureElement(ev, wrapper, today) {
+  if (!ev.isConnected) {
+    return;
+  }
+
   const link = ev.querySelector("a");
-  const lecture = lectures.find((lec) => lec.url === link?.href);
+  const lecture = getLectureByUrl(link?.href);
   if (!link || !lecture) {
     return;
   }
 
   attachCalendarLectureActions(ev, lecture);
+  const previousDateKey = formatDateKey(lecture.startAt);
+  const previousStartAt = lecture.startAt.getTime();
+  const previousEndAt = lecture.endAt.getTime();
 
   try {
-    if (Utils.isBeforeCurrentWeek(lecture)) {
-      const eventDetails = await Service.getLectureDetail(link.href, {
-        requiredFields: CALENDAR_BASE_DETAIL_FIELDS,
+    const requiredFields = Utils.isBeforeCurrentWeek(lecture)
+      ? CALENDAR_BASE_DETAIL_FIELDS
+      : CALENDAR_CURRENT_DETAIL_FIELDS;
+    let eventDetails = await Service.getLectureDetail(link.href, {
+      requiredFields,
+    });
+    if (
+      requiredFields === CALENDAR_BASE_DETAIL_FIELDS &&
+      !Utils.isBeforeCurrentWeek(eventDetails)
+    ) {
+      eventDetails = await Service.getLectureDetail(link.href, {
+        requiredFields: CALENDAR_CURRENT_DETAIL_FIELDS,
       });
-      renderCalendarLecture(ev, eventDetails);
+    }
+    if (!ev.isConnected) {
       return;
     }
-
-    const eventDetails = await Service.getLectureDetail(link.href, {
-      requiredFields: CALENDAR_CURRENT_DETAIL_FIELDS,
-    });
-    renderCalendarLecture(ev, eventDetails);
+    updateCalendarLectureRender(
+      wrapper,
+      today,
+      ev,
+      previousDateKey,
+      previousStartAt,
+      previousEndAt,
+      eventDetails,
+    );
   } catch (error) {
     console.error(error);
   }
 }
 
-async function updateCalendarElement(eventElems) {
-  const targetEventElems = Array.from(
+async function updateCalendarElement(
+  eventElems,
+  wrapper = document.getElementById("history-calendar"),
+  today = new Date(),
+) {
+  const allEventElems = Array.from(
     eventElems ?? document.querySelectorAll("div.calendar-lecture"),
-  ).filter(
+  );
+  for (const ev of allEventElems) {
+    const link = ev.querySelector("a");
+    const lecture = getLectureByUrl(link?.href);
+    if (link && lecture) {
+      attachCalendarLectureActions(ev, lecture);
+    }
+  }
+  const targetEventElems = allEventElems.filter(
     (ev) =>
       ev.querySelector('[data-role="location"]')?.innerText === "장소 로딩중..",
   );
   await Utils.mapWithConcurrency(
     targetEventElems,
     LECTURE_DETAIL_CONCURRENCY_LIMIT,
-    updateCalendarLectureElement,
+    (ev) => updateCalendarLectureElement(ev, wrapper, today),
   );
 }
 
