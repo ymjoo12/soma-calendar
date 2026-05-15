@@ -2,10 +2,8 @@ const Cache = (() => {
   const LECTURE_RECORD_CACHE_PREFIX = "soma-lecture-record:";
   const LECTURE_ORDER_CACHE_PREFIX = "soma-lecture-order:";
   const LECTURE_PAST_STATE_PREFIX = "soma-lecture-past-state:";
-  const LECTURE_CALENDAR_STATE_PREFIX = "soma-lecture-calendar-state:";
+  const LECTURE_HISTORY_STATE_PREFIX = "soma-lecture-history-state:";
   const LECTURE_ORDER_HISTORY_LATEST = "history-latest";
-  const LECTURE_ORDER_PAST_LATEST = "past-latest";
-  const LECTURE_ORDER_CALENDAR_CURRENT = "calendar-current";
   const LEGACY_CACHE_PREFIXES = [
     "soma-lecture-detail:",
     "soma-history-item:",
@@ -14,6 +12,7 @@ const Cache = (() => {
     "soma-history-past-lectures:",
     "soma-past-lecture-detail:",
     "soma-lecture-first-page:",
+    "soma-lecture-calendar-state:",
   ];
   const lectureRecordMemory = new Map();
   const lectureObjectMemory = new Map();
@@ -41,8 +40,8 @@ const Cache = (() => {
     return LECTURE_PAST_STATE_PREFIX + path;
   }
 
-  function getLectureCalendarStateKey(path) {
-    return LECTURE_CALENDAR_STATE_PREFIX + path;
+  function getLectureHistoryStateKey(path) {
+    return LECTURE_HISTORY_STATE_PREFIX + path;
   }
 
   // Lecture records
@@ -362,66 +361,61 @@ const Cache = (() => {
 
   function mergeHistoryOrderWithFirstPage(path, firstPageLectures) {
     const currentIds = firstPageLectures.map(getLectureRecordId);
-    const orderIds = readLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST);
+    const orderIds = readLectureOrder(
+      path,
+      LECTURE_ORDER_HISTORY_LATEST,
+      localStorage,
+    );
 
     if (orderIds && canReuseHistoryTail(currentIds, orderIds)) {
-      writeLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST, [
-        ...currentIds,
-        ...orderIds.filter((id) => !currentIds.includes(id)),
-      ]);
+      writeLectureOrder(
+        path,
+        LECTURE_ORDER_HISTORY_LATEST,
+        [...currentIds, ...orderIds.filter((id) => !currentIds.includes(id))],
+        localStorage,
+      );
       return;
     }
 
-    writeLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST, currentIds);
+    writeLectureOrder(
+      path,
+      LECTURE_ORDER_HISTORY_LATEST,
+      currentIds,
+      localStorage,
+    );
+    writeHistoryLectureState(path, false);
   }
 
   function mergeHistoryOrderWithPage(path, page, lectures) {
     const pageStartIndex = (Number(page) - 1) * LECTURE_HISTORY_PAGE_SIZE;
     const pageIds = lectures.map(getLectureRecordId);
-    const orderIds = readLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST) ?? [];
+    const orderIds =
+      readLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST, localStorage) ?? [];
+    const currentPageIds = orderIds.slice(
+      pageStartIndex,
+      pageStartIndex + pageIds.length,
+    );
+    const isSamePage = pageIds.every(
+      (id, index) => currentPageIds[index] === id,
+    );
     const nextOrderIds = orderIds.filter((id) => !pageIds.includes(id));
 
     nextOrderIds.splice(pageStartIndex, pageIds.length, ...pageIds);
-    writeLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST, nextOrderIds);
-  }
-
-  function readHistoryPageCache(path, page, totalPages) {
-    if (String(page) === PAGE_ONE) {
-      return null;
-    }
-
-    const orderIds = readLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST);
-    if (!orderIds) {
-      return null;
-    }
-
-    const pageStartIndex = (Number(page) - 1) * LECTURE_HISTORY_PAGE_SIZE;
-    const pageIds = orderIds.slice(
-      pageStartIndex,
-      pageStartIndex + LECTURE_HISTORY_PAGE_SIZE,
+    writeLectureOrder(
+      path,
+      LECTURE_ORDER_HISTORY_LATEST,
+      nextOrderIds,
+      localStorage,
     );
-    const isLastPage = Number(page) === totalPages;
-    if (
-      pageIds.length === 0 ||
-      (!isLastPage && pageIds.length < LECTURE_HISTORY_PAGE_SIZE)
-    ) {
-      return null;
+    if (!isSamePage) {
+      writeHistoryLectureState(path, false);
     }
-
-    const lectures = [];
-    for (const id of pageIds) {
-      const lecture = getCachedLectureListItem(id);
-      if (!lecture) {
-        return null;
-      }
-      lectures.push(lecture);
-    }
-
-    return Utils.normalizeLectureDates(lectures);
   }
 
   function getCachedHistoryLectureIds(path) {
-    return readLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST) ?? [];
+    return (
+      readLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST, localStorage) ?? []
+    );
   }
 
   function writeHistoryPageCache(path, page, lectures) {
@@ -462,9 +456,9 @@ const Cache = (() => {
     }
   }
 
-  function readCalendarLectureState(path) {
+  function readHistoryLectureState(path) {
     try {
-      const raw = localStorage.getItem(getLectureCalendarStateKey(path));
+      const raw = localStorage.getItem(getLectureHistoryStateKey(path));
       if (!raw) {
         return { complete: false };
       }
@@ -475,7 +469,7 @@ const Cache = (() => {
         typeof cached.savedAt !== "number" ||
         Date.now() - cached.savedAt > LECTURE_PAST_CACHE_TTL_MS
       ) {
-        localStorage.removeItem(getLectureCalendarStateKey(path));
+        localStorage.removeItem(getLectureHistoryStateKey(path));
         return { complete: false };
       }
 
@@ -503,10 +497,10 @@ const Cache = (() => {
     }
   }
 
-  function writeCalendarLectureState(path, complete) {
+  function writeHistoryLectureState(path, complete) {
     try {
       localStorage.setItem(
-        getLectureCalendarStateKey(path),
+        getLectureHistoryStateKey(path),
         JSON.stringify({
           version: LECTURE_CACHE_VERSION,
           savedAt: Date.now(),
@@ -519,8 +513,7 @@ const Cache = (() => {
   }
 
   function readPastLectureCache(path) {
-    const ids =
-      readLectureOrder(path, LECTURE_ORDER_PAST_LATEST, localStorage) ?? [];
+    const ids = getCachedHistoryLectureIds(path);
     const lectures = ids.map(getCachedLectureListItem).filter(Boolean);
     return {
       lectures: Utils.normalizeLectureDates(lectures),
@@ -534,63 +527,31 @@ const Cache = (() => {
     );
   }
 
-  function getCachedCalendarLectureIds(path) {
-    return (
-      readLectureOrder(path, LECTURE_ORDER_CALENDAR_CURRENT, localStorage) ?? []
-    );
-  }
-
-  function writeCalendarLectureCache(path, lectures, startDate) {
-    const currentLectures = lectures.filter(
-      (lecture) => lecture.startAt >= startDate,
-    );
-    if (currentLectures.length === 0) {
-      return;
-    }
-
-    writeLectureRecords(currentLectures);
-    const currentIds = currentLectures.map(getLectureRecordId);
-    const existingIds = getCachedCalendarLectureIds(path);
-    const lecturesById = new Map();
-    const unknownIds = [];
-    for (const id of existingIds) {
+  function getCachedCalendarLectureIds(path, startDate) {
+    return getCachedHistoryLectureIds(path).filter((id) => {
       const record = readLectureRecord(id);
       const lecture = record ? getLectureObjectFromRecord(record) : null;
-      if (lecture && lecture.startAt >= startDate) {
-        lecturesById.set(id, lecture);
-      } else if (!lecture) {
-        unknownIds.push(id);
-      }
-    }
-    for (const lecture of currentLectures) {
-      lecturesById.set(getLectureRecordId(lecture), lecture);
-    }
-
-    writeLectureOrder(
-      path,
-      LECTURE_ORDER_CALENDAR_CURRENT,
-      [
-        ...Utils.normalizeLectureDates(Array.from(lecturesById.values())).map(
-          getLectureRecordId,
-        ),
-        ...unknownIds.filter((id) => !currentIds.includes(id)),
-      ],
-      localStorage,
-    );
+      return !lecture?.startAt || lecture.startAt >= startDate;
+    });
   }
 
-  function removeCalendarLectureIds(path, ids) {
+  function getCachedCalendarLectures(path, startDate) {
+    return getCachedCalendarLectureIds(path, startDate)
+      .map(getCachedLectureListItem)
+      .filter(Boolean)
+      .filter((lecture) => lecture.startAt >= startDate);
+  }
+
+  function removeHistoryLectureIds(path, ids) {
     const removeIds = new Set(ids);
     if (removeIds.size === 0) {
       return;
     }
 
-    const existingIds =
-      readLectureOrder(path, LECTURE_ORDER_CALENDAR_CURRENT, localStorage) ??
-      [];
+    const existingIds = getCachedHistoryLectureIds(path);
     writeLectureOrder(
       path,
-      LECTURE_ORDER_CALENDAR_CURRENT,
+      LECTURE_ORDER_HISTORY_LATEST,
       existingIds.filter((id) => !removeIds.has(id)),
       localStorage,
     );
@@ -605,15 +566,6 @@ const Cache = (() => {
     }
 
     writeLectureRecords(pastLectures);
-    const existingIds =
-      readLectureOrder(path, LECTURE_ORDER_PAST_LATEST, localStorage) ?? [];
-    const pastIds = pastLectures.map(getLectureRecordId);
-    writeLectureOrder(
-      path,
-      LECTURE_ORDER_PAST_LATEST,
-      [...pastIds, ...existingIds.filter((id) => !pastIds.includes(id))],
-      localStorage,
-    );
     if (complete) {
       writePastLectureState(path, true);
     }
@@ -623,12 +575,12 @@ const Cache = (() => {
     writePastLectureState(path, true);
   }
 
-  function hasCompleteCalendarLectureCache(path) {
-    return readCalendarLectureState(path).complete;
+  function hasCompleteHistoryLectureCache(path) {
+    return readHistoryLectureState(path).complete;
   }
 
-  function markCalendarLectureCacheComplete(path) {
-    writeCalendarLectureState(path, true);
+  function markHistoryLectureCacheComplete(path) {
+    writeHistoryLectureState(path, true);
   }
 
   function updateLectureCache(lecture) {
@@ -664,7 +616,7 @@ const Cache = (() => {
       LECTURE_RECORD_CACHE_PREFIX,
       LECTURE_ORDER_CACHE_PREFIX,
       LECTURE_PAST_STATE_PREFIX,
-      LECTURE_CALENDAR_STATE_PREFIX,
+      LECTURE_HISTORY_STATE_PREFIX,
       ...LEGACY_CACHE_PREFIXES,
     ];
     try {
@@ -709,6 +661,7 @@ const Cache = (() => {
     clearAllLectureCache,
     clearHistorySessionCache,
     getCachedCalendarLectureIds,
+    getCachedCalendarLectures,
     getCachedHistoryLectureIds,
     getCachedLectureFields,
     getCachedPastLectureFields,
@@ -716,16 +669,14 @@ const Cache = (() => {
     getLectureDetailCacheKey,
     getLectureObjectFromRecord,
     getLectureRecordId,
-    hasCompleteCalendarLectureCache,
+    hasCompleteHistoryLectureCache,
     loadLectureDetailRequest,
-    markCalendarLectureCacheComplete,
+    markHistoryLectureCacheComplete,
     markPastLectureCacheComplete,
-    readHistoryPageCache,
     readLectureRecord,
     readPastLectureCache,
-    removeCalendarLectureIds,
+    removeHistoryLectureIds,
     updateLectureCache,
-    writeCalendarLectureCache,
     writeHistoryPageCache,
     writePastLectureCache,
   };

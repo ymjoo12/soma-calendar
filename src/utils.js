@@ -121,6 +121,7 @@ const Utils = (() => {
     convertLectureDictionary,
     convertLectureDictionaryWithoutDate,
     getCenterPathPrefix,
+    getCurrentWeekStartDate,
     getLectureHistoryPath,
     getLectureId,
     getMin,

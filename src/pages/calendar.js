@@ -12,6 +12,13 @@ const CALENDAR_CURRENT_DETAIL_FIELDS = [
   "appliedCount",
   "isApproved",
 ];
+const CALENDAR_ACTION_DETAIL_FIELDS = [
+  "title",
+  "author",
+  "dateStr",
+  "timeRangeStr",
+  "location",
+];
 
 // Calendar rendering
 function createCalendarButton(
@@ -402,21 +409,45 @@ function attachCalendarLectureActions(ev, lecture) {
   }
 
   const exportBtn = ev.querySelector(".export-btn");
-  exportBtn.addEventListener("click", () => {
-    const icsContent = generateICS(lecture);
-    const blob = new Blob([icsContent], { type: "text/calendar" });
-    const downloadLink = document.createElement("a");
-    downloadLink.href = URL.createObjectURL(blob);
-    downloadLink.download = `${lecture.title.replace(/\s+/g, "_")}.ics`;
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
+  exportBtn.addEventListener("click", async () => {
+    exportBtn.disabled = true;
+    try {
+      const latestLecture = await getCalendarLectureForAction(ev, lecture);
+      const icsContent = generateICS(latestLecture);
+      const blob = new Blob([icsContent], { type: "text/calendar" });
+      const downloadLink = document.createElement("a");
+      downloadLink.href = URL.createObjectURL(blob);
+      downloadLink.download = `${latestLecture.title.replace(/\s+/g, "_")}.ics`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      exportBtn.disabled = false;
+    }
   });
 
   const gcalBtn = ev.querySelector(".gcal-btn");
-  gcalBtn.addEventListener("click", () => {
-    const googleCalendarURL = generateGoogleCalendarURL(lecture);
-    window.open(googleCalendarURL, "_blank");
+  gcalBtn.addEventListener("click", async () => {
+    const calendarWindow = window.open("", "_blank");
+    gcalBtn.disabled = true;
+    try {
+      const latestLecture = await getCalendarLectureForAction(ev, lecture);
+      const googleCalendarURL = generateGoogleCalendarURL(latestLecture);
+      if (calendarWindow) {
+        calendarWindow.location.href = googleCalendarURL;
+      } else {
+        window.open(googleCalendarURL, "_blank");
+      }
+    } catch (error) {
+      if (calendarWindow) {
+        calendarWindow.close();
+      }
+      console.error(error);
+    } finally {
+      gcalBtn.disabled = false;
+    }
   });
 
   const cancelBtn = ev.querySelector(".cancel-btn");
@@ -513,6 +544,31 @@ function updateCalendarLectureRender(
   }
 
   renderCalendarLecture(ev, lecture);
+}
+
+async function getCalendarLectureForAction(ev, lecture) {
+  const wrapper = document.getElementById("history-calendar");
+  const today = new Date();
+  const previousDateKey = formatDateKey(lecture.startAt);
+  const previousStartAt = lecture.startAt.getTime();
+  const previousEndAt = lecture.endAt.getTime();
+  const eventDetails = await Service.getLectureDetail(lecture.url, {
+    requiredFields: CALENDAR_ACTION_DETAIL_FIELDS,
+  });
+
+  if (ev.isConnected) {
+    updateCalendarLectureRender(
+      wrapper,
+      today,
+      ev,
+      previousDateKey,
+      previousStartAt,
+      previousEndAt,
+      eventDetails,
+    );
+  }
+
+  return getLectureByUrl(lecture.url) || eventDetails;
 }
 
 async function updateCalendarLectureElement(ev, wrapper, today) {
