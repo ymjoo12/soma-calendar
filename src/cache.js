@@ -155,6 +155,14 @@ const Cache = (() => {
   }
 
   function getLectureStartAt(fields) {
+    return getLectureDateTime(fields, 0);
+  }
+
+  function getLectureEndAt(fields) {
+    return getLectureDateTime(fields, 1);
+  }
+
+  function getLectureDateTime(fields, timeIndex) {
     if (
       typeof fields.dateStr !== "string" ||
       typeof fields.timeRangeStr !== "string"
@@ -163,15 +171,13 @@ const Cache = (() => {
     }
 
     const datePart = fields.dateStr.split("(")[0].trim();
-    const startTime = fields.timeRangeStr.split("~")[0]?.trim();
-    if (!datePart || !startTime) {
+    const time = fields.timeRangeStr.split("~")[timeIndex]?.trim();
+    if (!datePart || !time) {
       return null;
     }
 
-    const startAt = new Date(
-      `${datePart}T${Utils.normalizeTimeStr(startTime)}`,
-    );
-    return Number.isNaN(startAt.getTime()) ? null : startAt;
+    const dateTime = new Date(`${datePart}T${Utils.normalizeTimeStr(time)}`);
+    return Number.isNaN(dateTime.getTime()) ? null : dateTime;
   }
 
   function isPastLectureFields(fields) {
@@ -218,6 +224,29 @@ const Cache = (() => {
     return fields;
   }
 
+  function getLectureOrderEntry(lecture) {
+    const id =
+      typeof lecture === "string" ? lecture : getLectureRecordId(lecture);
+    const record = readLectureRecord(id);
+    const fields =
+      typeof lecture === "string"
+        ? { ...(record?.fields ?? {}) }
+        : {
+            ...(record?.fields ?? {}),
+            ...pickLectureFields({ ...lecture, lectureId: id }),
+          };
+    const startAt = getLectureStartAt(fields);
+    const endAt = getLectureEndAt(fields);
+
+    return {
+      id,
+      dateStr: fields.dateStr ?? null,
+      timeRangeStr: fields.timeRangeStr ?? null,
+      startAt: startAt ? startAt.getTime() : null,
+      endAt: endAt ? endAt.getTime() : null,
+    };
+  }
+
   function writeLectureRecord(lecture) {
     const id = getLectureRecordId(lecture);
     const currentRecord = readLectureRecord(id);
@@ -248,6 +277,7 @@ const Cache = (() => {
     } else {
       localStorage.removeItem(getLectureRecordCacheKey(id));
     }
+    updateLectureOrderEntries(id, nextRecord.fields);
 
     return nextRecord;
   }
@@ -294,7 +324,7 @@ const Cache = (() => {
   }
 
   // History order
-  function readLectureOrder(path, type, storage = sessionStorage) {
+  function readLectureOrderCache(path, type, storage = sessionStorage) {
     const storageKey = getLectureOrderCacheKey(path, type);
     try {
       const raw = storage.getItem(storageKey);
@@ -307,35 +337,132 @@ const Cache = (() => {
         storage === localStorage
           ? LECTURE_PAST_CACHE_TTL_MS
           : LECTURE_BASIC_CACHE_TTL_MS;
+      const hasIds = Array.isArray(cached.ids);
+      const hasItems = Array.isArray(cached.items);
       if (
         cached.version !== LECTURE_CACHE_VERSION ||
         typeof cached.savedAt !== "number" ||
         Date.now() - cached.savedAt > ttl ||
-        !Array.isArray(cached.ids)
+        (!hasIds && !hasItems)
       ) {
         storage.removeItem(storageKey);
         return null;
       }
 
-      return cached.ids;
+      return cached;
     } catch (error) {
       console.error(error);
       return null;
     }
   }
 
-  function writeLectureOrder(path, type, ids, storage = sessionStorage) {
+  function normalizeLectureOrderEntry(entry) {
+    if (typeof entry === "string") {
+      return getLectureOrderEntry(entry);
+    }
+
+    const id = entry?.id;
+    if (!id) {
+      return null;
+    }
+
+    const currentEntry = getLectureOrderEntry(id);
+    const fields = {
+      ...currentEntry,
+      dateStr: entry.dateStr ?? currentEntry.dateStr,
+      timeRangeStr: entry.timeRangeStr ?? currentEntry.timeRangeStr,
+    };
+    const startAt =
+      typeof entry.startAt === "number"
+        ? entry.startAt
+        : getLectureStartAt(fields)?.getTime();
+    const endAt =
+      typeof entry.endAt === "number"
+        ? entry.endAt
+        : getLectureEndAt(fields)?.getTime();
+
+    return {
+      id,
+      dateStr: fields.dateStr ?? null,
+      timeRangeStr: fields.timeRangeStr ?? null,
+      startAt: startAt ?? null,
+      endAt: endAt ?? null,
+    };
+  }
+
+  function getLectureOrderEntriesFromCache(cached) {
+    const source = Array.isArray(cached.items) ? cached.items : cached.ids;
+    return source.map(normalizeLectureOrderEntry).filter(Boolean);
+  }
+
+  function readLectureOrderEntries(path, type, storage = sessionStorage) {
+    const cached = readLectureOrderCache(path, type, storage);
+    return cached ? getLectureOrderEntriesFromCache(cached) : null;
+  }
+
+  function writeLectureOrderCacheByKey(
+    storage,
+    storageKey,
+    entries,
+    savedAt = Date.now(),
+  ) {
+    const items = entries.map(normalizeLectureOrderEntry).filter(Boolean);
     try {
       storage.setItem(
-        getLectureOrderCacheKey(path, type),
+        storageKey,
         JSON.stringify({
           version: LECTURE_CACHE_VERSION,
-          savedAt: Date.now(),
-          ids,
+          savedAt,
+          ids: items.map((entry) => entry.id),
+          items,
         }),
       );
     } catch (error) {
       console.error(error);
+    }
+  }
+
+  function writeLectureOrder(path, type, entries, storage = sessionStorage) {
+    writeLectureOrderCacheByKey(
+      storage,
+      getLectureOrderCacheKey(path, type),
+      entries,
+    );
+  }
+
+  function updateLectureOrderEntries(id, fields) {
+    for (let index = localStorage.length - 1; index >= 0; index--) {
+      const key = localStorage.key(index);
+      if (!key?.startsWith(LECTURE_ORDER_CACHE_PREFIX)) {
+        continue;
+      }
+
+      try {
+        const raw = localStorage.getItem(key);
+        const cached = raw ? JSON.parse(raw) : null;
+        if (
+          !cached ||
+          cached.version !== LECTURE_CACHE_VERSION ||
+          typeof cached.savedAt !== "number" ||
+          Date.now() - cached.savedAt > LECTURE_PAST_CACHE_TTL_MS
+        ) {
+          continue;
+        }
+
+        const entries = getLectureOrderEntriesFromCache(cached);
+        const entryIndex = entries.findIndex((entry) => entry.id === id);
+        if (entryIndex === -1) {
+          continue;
+        }
+
+        entries[entryIndex] = getLectureOrderEntry({
+          ...fields,
+          lectureId: id,
+        });
+        writeLectureOrderCacheByKey(localStorage, key, entries, cached.savedAt);
+      } catch (error) {
+        console.error(error);
+      }
     }
   }
 
@@ -360,18 +487,25 @@ const Cache = (() => {
   }
 
   function mergeHistoryOrderWithFirstPage(path, firstPageLectures) {
-    const currentIds = firstPageLectures.map(getLectureRecordId);
-    const orderIds = readLectureOrder(
-      path,
-      LECTURE_ORDER_HISTORY_LATEST,
-      localStorage,
-    );
+    const currentEntries = firstPageLectures.map(getLectureOrderEntry);
+    const currentIds = currentEntries.map((entry) => entry.id);
+    const orderEntries =
+      readLectureOrderEntries(
+        path,
+        LECTURE_ORDER_HISTORY_LATEST,
+        localStorage,
+      ) ?? [];
+    const orderIds = orderEntries.map((entry) => entry.id);
 
-    if (orderIds && canReuseHistoryTail(currentIds, orderIds)) {
+    if (canReuseHistoryTail(currentIds, orderIds)) {
+      const currentIdSet = new Set(currentIds);
       writeLectureOrder(
         path,
         LECTURE_ORDER_HISTORY_LATEST,
-        [...currentIds, ...orderIds.filter((id) => !currentIds.includes(id))],
+        [
+          ...currentEntries,
+          ...orderEntries.filter((entry) => !currentIdSet.has(entry.id)),
+        ],
         localStorage,
       );
       return;
@@ -380,7 +514,7 @@ const Cache = (() => {
     writeLectureOrder(
       path,
       LECTURE_ORDER_HISTORY_LATEST,
-      currentIds,
+      currentEntries,
       localStorage,
     );
     writeHistoryLectureState(path, false);
@@ -388,9 +522,15 @@ const Cache = (() => {
 
   function mergeHistoryOrderWithPage(path, page, lectures) {
     const pageStartIndex = (Number(page) - 1) * LECTURE_HISTORY_PAGE_SIZE;
-    const pageIds = lectures.map(getLectureRecordId);
-    const orderIds =
-      readLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST, localStorage) ?? [];
+    const pageEntries = lectures.map(getLectureOrderEntry);
+    const pageIds = pageEntries.map((entry) => entry.id);
+    const orderEntries =
+      readLectureOrderEntries(
+        path,
+        LECTURE_ORDER_HISTORY_LATEST,
+        localStorage,
+      ) ?? [];
+    const orderIds = orderEntries.map((entry) => entry.id);
     const currentPageIds = orderIds.slice(
       pageStartIndex,
       pageStartIndex + pageIds.length,
@@ -398,13 +538,16 @@ const Cache = (() => {
     const isSamePage = pageIds.every(
       (id, index) => currentPageIds[index] === id,
     );
-    const nextOrderIds = orderIds.filter((id) => !pageIds.includes(id));
+    const pageIdSet = new Set(pageIds);
+    const nextOrderEntries = orderEntries.filter(
+      (entry) => !pageIdSet.has(entry.id),
+    );
 
-    nextOrderIds.splice(pageStartIndex, pageIds.length, ...pageIds);
+    nextOrderEntries.splice(pageStartIndex, pageIds.length, ...pageEntries);
     writeLectureOrder(
       path,
       LECTURE_ORDER_HISTORY_LATEST,
-      nextOrderIds,
+      nextOrderEntries,
       localStorage,
     );
     if (!isSamePage) {
@@ -413,8 +556,16 @@ const Cache = (() => {
   }
 
   function getCachedHistoryLectureIds(path) {
+    return getCachedHistoryLectureEntries(path).map((entry) => entry.id);
+  }
+
+  function getCachedHistoryLectureEntries(path) {
     return (
-      readLectureOrder(path, LECTURE_ORDER_HISTORY_LATEST, localStorage) ?? []
+      readLectureOrderEntries(
+        path,
+        LECTURE_ORDER_HISTORY_LATEST,
+        localStorage,
+      ) ?? []
     );
   }
 
@@ -528,11 +679,10 @@ const Cache = (() => {
   }
 
   function getCachedCalendarLectureIds(path, startDate) {
-    return getCachedHistoryLectureIds(path).filter((id) => {
-      const record = readLectureRecord(id);
-      const lecture = record ? getLectureObjectFromRecord(record) : null;
-      return !lecture?.startAt || lecture.startAt >= startDate;
-    });
+    const startTime = startDate.getTime();
+    return getCachedHistoryLectureEntries(path)
+      .filter((entry) => entry.startAt === null || entry.startAt >= startTime)
+      .map((entry) => entry.id);
   }
 
   function getCachedCalendarLectures(path, startDate) {
@@ -548,11 +698,11 @@ const Cache = (() => {
       return;
     }
 
-    const existingIds = getCachedHistoryLectureIds(path);
+    const existingEntries = getCachedHistoryLectureEntries(path);
     writeLectureOrder(
       path,
       LECTURE_ORDER_HISTORY_LATEST,
-      existingIds.filter((id) => !removeIds.has(id)),
+      existingEntries.filter((entry) => !removeIds.has(entry.id)),
       localStorage,
     );
   }
@@ -662,6 +812,7 @@ const Cache = (() => {
     clearHistorySessionCache,
     getCachedCalendarLectureIds,
     getCachedCalendarLectures,
+    getCachedHistoryLectureEntries,
     getCachedHistoryLectureIds,
     getCachedLectureFields,
     getCachedPastLectureFields,

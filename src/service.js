@@ -4,11 +4,6 @@ const Service = (() => {
     return new Set(lectures.map(Cache.getLectureRecordId));
   }
 
-  function getLectureFromCache(id) {
-    const record = Cache.readLectureRecord(id);
-    return record ? Cache.getLectureObjectFromRecord(record) : null;
-  }
-
   // Shared lecture objects
   function updateLectures(...lectureGroups) {
     const lectureMap = new Map();
@@ -124,21 +119,27 @@ const Service = (() => {
     return Math.floor(index / LECTURE_HISTORY_PAGE_SIZE) + 1;
   }
 
-  function getMissingCalendarAnchors(path, missingIds) {
-    const historyIds = Cache.getCachedHistoryLectureIds(path);
-    const today = Utils.getTodayStartDate();
+  function getMissingCalendarAnchors(path, missingIds, startDate) {
+    const historyEntries = Cache.getCachedHistoryLectureEntries(path);
+    const startTime = startDate.getTime();
     const anchors = new Map();
 
     for (const missingId of missingIds) {
-      const missingIndex = historyIds.indexOf(missingId);
+      const missingIndex = historyEntries.findIndex(
+        (entry) => entry.id === missingId,
+      );
       let anchor = null;
 
       if (missingIndex !== -1) {
-        for (let index = missingIndex + 1; index < historyIds.length; index++) {
-          const lecture = getLectureFromCache(historyIds[index]);
-          if (lecture?.startAt < today) {
+        for (
+          let index = missingIndex + 1;
+          index < historyEntries.length;
+          index++
+        ) {
+          const entry = historyEntries[index];
+          if (entry.startAt !== null && entry.startAt < startTime) {
             anchor = {
-              id: historyIds[index],
+              id: entry.id,
               page: getHistoryPageByIndex(index),
             };
             break;
@@ -301,6 +302,7 @@ const Service = (() => {
     const missingCalendarAnchors = getMissingCalendarAnchors(
       path,
       missingCalendarIds,
+      startDate,
     );
     if (firstPastPage !== null) {
       removeMissingIdsWithFetchedAnchors(
@@ -401,6 +403,7 @@ const Service = (() => {
       const missingCalendarAnchors = getMissingCalendarAnchors(
         path,
         missingCalendarIds,
+        startDate,
       );
       removeMissingIdsWithFetchedAnchors(
         path,
