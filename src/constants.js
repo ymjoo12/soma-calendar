@@ -1,7 +1,10 @@
 // Lecture constants
 const PAGE_ONE = "1";
 const LECTURE_DETAIL_CONCURRENCY_LIMIT = 5;
-const LECTURE_CACHE_VERSION = 3;
+const LECTURE_CACHE_VERSION =
+  typeof chrome === "object" && chrome.runtime?.getManifest
+    ? chrome.runtime.getManifest().version
+    : "26.5.14.0";
 const LECTURE_BASIC_CACHE_TTL_MS = 30 * 60 * 1000;
 const LECTURE_VOLATILE_CACHE_TTL_MS = 30 * 1000;
 const LECTURE_PAST_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
