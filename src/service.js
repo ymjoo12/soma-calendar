@@ -102,10 +102,6 @@ const Service = (() => {
     return pastLectures;
   }
 
-  function getCalendarLecturesFromPage(pageLectures, startDate) {
-    return pageLectures.filter((lecture) => lecture.startAt >= startDate);
-  }
-
   function getMissingCalendarLectureIds(path, liveLectures, startDate) {
     const liveIds = getLectureCacheIds(liveLectures);
     return new Set(
@@ -115,86 +111,29 @@ const Service = (() => {
     );
   }
 
-  function getHistoryPageByIndex(index) {
-    return Math.floor(index / LECTURE_HISTORY_PAGE_SIZE) + 1;
+  function getCachedLectureSnapshots(ids) {
+    return Array.from(ids)
+      .map((id) => {
+        const record = Cache.readLectureRecord(id);
+        return record ? { ...Cache.getLectureObjectFromRecord(record) } : null;
+      })
+      .filter(Boolean);
   }
 
-  function getMissingCalendarAnchors(path, missingIds, startDate) {
-    const historyEntries = Cache.getCachedHistoryLectureEntries(path);
-    const startTime = startDate.getTime();
-    const anchors = new Map();
-
-    for (const missingId of missingIds) {
-      const missingIndex = historyEntries.findIndex(
-        (entry) => entry.id === missingId,
-      );
-      let anchor = null;
-
-      if (missingIndex !== -1) {
-        for (
-          let index = missingIndex + 1;
-          index < historyEntries.length;
-          index++
-        ) {
-          const entry = historyEntries[index];
-          if (entry.startAt !== null && entry.startAt < startTime) {
-            anchor = {
-              id: entry.id,
-              page: getHistoryPageByIndex(index),
-            };
-            break;
-          }
-        }
-      }
-
-      anchors.set(missingId, anchor);
-    }
-
-    return anchors;
-  }
-
-  function removeMissingIdsWithFetchedAnchors(path, missingIds, anchors, page) {
-    const staleIds = [];
-    for (const id of Array.from(missingIds)) {
-      const anchor = anchors.get(id);
-      if (anchor && anchor.page <= page) {
-        staleIds.push(id);
-        missingIds.delete(id);
-      }
-    }
-    Cache.removeHistoryLectureIds(path, staleIds);
-  }
-
-  function getMissingCalendarScanEndPage(missingIds, anchors, totalPages) {
-    let endPage = 0;
-    for (const id of missingIds) {
-      const anchor = anchors.get(id);
-      if (!anchor) {
-        return totalPages;
-      }
-      endPage = Math.max(endPage, anchor.page);
-    }
-    return endPage;
-  }
-
-  function reconcileMissingCalendarIds(pageLectures, missingIds, anchors) {
+  function removeFoundCalendarIds(pageLectures, missingIds) {
     const pageIds = getLectureCacheIds(pageLectures);
-    const staleIds = [];
+    const foundIds = new Set();
 
-    for (const id of Array.from(missingIds)) {
+    for (const id of missingIds) {
       if (pageIds.has(id)) {
-        missingIds.delete(id);
-        continue;
-      }
-
-      const anchor = anchors.get(id);
-      if (anchor && pageIds.has(anchor.id)) {
-        staleIds.push(id);
-        missingIds.delete(id);
+        foundIds.add(id);
       }
     }
 
-    return staleIds;
+    for (const id of foundIds) {
+      missingIds.delete(id);
+    }
+    return foundIds;
   }
 
   async function cachePastLecturePages(
@@ -206,18 +145,15 @@ const Service = (() => {
     onPage,
     includePastLectures = true,
     missingCalendarIds = new Set(),
-    missingCalendarAnchors = new Map(),
   ) {
-    const staleCalendarIds = new Set();
-
     for (let page = startPage; page <= endPage; page++) {
+      const previousMissingLectures =
+        missingCalendarIds.size > 0
+          ? getCachedLectureSnapshots(missingCalendarIds)
+          : [];
       const pageLectures = await getLiveLecturePage(path, page);
       const pastLectures = cachePastLecturesFromPage(
         path,
-        pageLectures,
-        startDate,
-      );
-      const calendarLectures = getCalendarLecturesFromPage(
         pageLectures,
         startDate,
       );
@@ -229,30 +165,30 @@ const Service = (() => {
           : [];
 
       if (onPage && lecturesForPage.length > 0) {
-        onPage(lecturesForPage);
-      }
-
-      for (const lecture of calendarLectures) {
-        missingCalendarIds.delete(Cache.getLectureRecordId(lecture));
-      }
-      for (const id of reconcileMissingCalendarIds(
-        pageLectures,
-        missingCalendarIds,
-        missingCalendarAnchors,
-      )) {
-        staleCalendarIds.add(id);
+        const foundIds = removeFoundCalendarIds(
+          pageLectures,
+          missingCalendarIds,
+        );
+        const previousFoundLectures = previousMissingLectures.filter(
+          (lecture) => foundIds.has(Cache.getLectureRecordId(lecture)),
+        );
+        onPage(lecturesForPage, previousFoundLectures);
+      } else {
+        removeFoundCalendarIds(pageLectures, missingCalendarIds);
       }
     }
 
     if (endPage === totalPages) {
-      for (const id of missingCalendarIds) {
-        staleCalendarIds.add(id);
-      }
+      const staleCalendarIds = new Set(missingCalendarIds);
+      const staleLectures = getCachedLectureSnapshots(staleCalendarIds);
       missingCalendarIds.clear();
       Cache.markHistoryLectureCacheComplete(path);
       Cache.markPastLectureCacheComplete(path);
+      Cache.removeHistoryLectureIds(path, staleCalendarIds);
+      if (onPage && staleLectures.length > 0) {
+        onPage([], staleLectures, staleCalendarIds);
+      }
     }
-    Cache.removeHistoryLectureIds(path, staleCalendarIds);
   }
 
   // Page entry points
@@ -270,6 +206,7 @@ const Service = (() => {
     }
 
     const freshLectures = [];
+    const fetchedLectures = [];
     const cachedPast = Cache.readPastLectureCache(path);
     const hasFreshPastCache = cachedPast?.complete === true;
     let firstPastPage = null;
@@ -277,6 +214,7 @@ const Service = (() => {
     for (let page = 1; page <= totalPages; page++) {
       const pageLectures = await getLiveLecturePage(path, page, firstPage);
       cachePastLecturesFromPage(path, pageLectures, startDate);
+      fetchedLectures.push(...pageLectures);
 
       if (isPastLecturePage(pageLectures, startDate)) {
         firstPastPage = page;
@@ -286,59 +224,27 @@ const Service = (() => {
       freshLectures.push(...pageLectures);
     }
 
-    if (firstPastPage === null) {
+    const scannedAllPages =
+      firstPastPage === null || firstPastPage === totalPages;
+    if (scannedAllPages) {
       Cache.markPastLectureCacheComplete(path);
       Cache.markHistoryLectureCacheComplete(path);
     }
     const hasCompleteHistoryCache = Cache.hasCompleteHistoryLectureCache(path);
     const missingCalendarIds = getMissingCalendarLectureIds(
       path,
-      freshLectures,
+      fetchedLectures,
       startDate,
     );
-    if (firstPastPage === null) {
+    if (scannedAllPages) {
       Cache.removeHistoryLectureIds(path, missingCalendarIds);
     }
-    const missingCalendarAnchors = getMissingCalendarAnchors(
-      path,
-      missingCalendarIds,
-      startDate,
-    );
-    if (firstPastPage !== null) {
-      removeMissingIdsWithFetchedAnchors(
-        path,
-        missingCalendarIds,
-        missingCalendarAnchors,
-        firstPastPage,
-      );
-    }
-    const missingCalendarScanEndPage = getMissingCalendarScanEndPage(
-      missingCalendarIds,
-      missingCalendarAnchors,
-      totalPages,
-    );
-    const historyScanEndPage = hasCompleteHistoryCache
-      ? missingCalendarScanEndPage
-      : totalPages;
-    const pastScanEndPage = hasFreshPastCache ? historyScanEndPage : totalPages;
-
-    if (firstPastPage !== null && historyScanEndPage > firstPastPage) {
-      await cachePastLecturePages(
-        path,
-        firstPastPage + 1,
-        historyScanEndPage,
-        totalPages,
-        startDate,
-        null,
-        false,
-        missingCalendarIds,
-        missingCalendarAnchors,
-      );
-    }
-    const loadPastStartPage =
-      firstPastPage === null
-        ? totalPages + 1
-        : Math.max(firstPastPage + 1, historyScanEndPage + 1);
+    const shouldLoadRemainingHistory =
+      firstPastPage !== null &&
+      !scannedAllPages &&
+      (!hasCompleteHistoryCache ||
+        !hasFreshPastCache ||
+        missingCalendarIds.size > 0);
 
     return {
       lectures: updateLectures(
@@ -351,18 +257,17 @@ const Service = (() => {
           : Cache.getCachedPastLectures(path, startDate),
       ),
       loadPastLectures:
-        firstPastPage !== null && loadPastStartPage <= pastScanEndPage
+        shouldLoadRemainingHistory && firstPastPage + 1 <= totalPages
           ? (onPage) =>
               cachePastLecturePages(
                 path,
-                loadPastStartPage,
-                pastScanEndPage,
+                firstPastPage + 1,
+                totalPages,
                 totalPages,
                 startDate,
                 onPage,
                 true,
                 missingCalendarIds,
-                missingCalendarAnchors,
               )
           : null,
     };
@@ -389,40 +294,28 @@ const Service = (() => {
       }
     }
 
-    if (firstPastPage === null) {
+    const missingCalendarIds = getMissingCalendarLectureIds(
+      path,
+      lectures,
+      startDate,
+    );
+    const scannedAllPages =
+      firstPastPage === null || firstPastPage === totalPages;
+
+    if (scannedAllPages) {
       Cache.markPastLectureCacheComplete(path);
       Cache.markHistoryLectureCacheComplete(path);
+      Cache.removeHistoryLectureIds(path, missingCalendarIds);
     } else {
       const hasCompleteHistoryCache =
         Cache.hasCompleteHistoryLectureCache(path);
-      const missingCalendarIds = getMissingCalendarLectureIds(
-        path,
-        lectures,
-        startDate,
-      );
-      const missingCalendarAnchors = getMissingCalendarAnchors(
-        path,
-        missingCalendarIds,
-        startDate,
-      );
-      removeMissingIdsWithFetchedAnchors(
-        path,
-        missingCalendarIds,
-        missingCalendarAnchors,
-        firstPastPage,
-      );
-      const scanEndPage = hasCompleteHistoryCache
-        ? getMissingCalendarScanEndPage(
-            missingCalendarIds,
-            missingCalendarAnchors,
-            totalPages,
-          )
-        : totalPages;
-      if (scanEndPage > firstPastPage) {
+      const shouldScanRemainingHistory =
+        !hasCompleteHistoryCache || missingCalendarIds.size > 0;
+      if (shouldScanRemainingHistory && firstPastPage < totalPages) {
         await cachePastLecturePages(
           path,
           firstPastPage + 1,
-          scanEndPage,
+          totalPages,
           totalPages,
           startDate,
           (pageLectures) => {
@@ -430,7 +323,6 @@ const Service = (() => {
           },
           false,
           missingCalendarIds,
-          missingCalendarAnchors,
         );
       }
     }

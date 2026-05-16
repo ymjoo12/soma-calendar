@@ -322,9 +322,18 @@ async function generateCalendarElement() {
 
   if (calendarLectures.loadPastLectures) {
     calendarLectures
-      .loadPastLectures((pageLectures) => {
+      .loadPastLectures((pageLectures, previousLectures = [], removedIds) => {
+        const removedIdSet = removedIds ?? new Set();
+        if (removedIdSet.size > 0) {
+          lectures = lectures.filter(
+            (lecture) => !removedIdSet.has(Cache.getLectureRecordId(lecture)),
+          );
+        }
         lectures = Service.updateLectures(lectures, pageLectures);
-        refreshVisibleCalendarCells(wrapper, today, pageLectures);
+        refreshVisibleCalendarCells(wrapper, today, [
+          ...previousLectures,
+          ...pageLectures,
+        ]);
       })
       .catch((error) => {
         console.error(error);
