@@ -102,12 +102,10 @@ const Service = (() => {
     return pastLectures;
   }
 
-  function getMissingCalendarLectureIds(path, liveLectures, startDate) {
+  function getMissingHistoryLectureIds(path, liveLectures) {
     const liveIds = getLectureCacheIds(liveLectures);
     return new Set(
-      Cache.getCachedCalendarLectureIds(path, startDate).filter(
-        (id) => !liveIds.has(id),
-      ),
+      Cache.getCachedHistoryLectureIds(path).filter((id) => !liveIds.has(id)),
     );
   }
 
@@ -120,7 +118,7 @@ const Service = (() => {
       .filter(Boolean);
   }
 
-  function removeFoundCalendarIds(pageLectures, missingIds) {
+  function removeFoundLectureIds(pageLectures, missingIds) {
     const pageIds = getLectureCacheIds(pageLectures);
     const foundIds = new Set();
 
@@ -144,13 +142,12 @@ const Service = (() => {
     startDate,
     onPage,
     includePastLectures = true,
-    missingCalendarIds = new Set(),
+    missingIds = new Set(),
+    stopWhenMissingIdsFound = false,
   ) {
     for (let page = startPage; page <= endPage; page++) {
       const previousMissingLectures =
-        missingCalendarIds.size > 0
-          ? getCachedLectureSnapshots(missingCalendarIds)
-          : [];
+        missingIds.size > 0 ? getCachedLectureSnapshots(missingIds) : [];
       const pageLectures = await getLiveLecturePage(path, page);
       const pastLectures = cachePastLecturesFromPage(
         path,
@@ -165,28 +162,29 @@ const Service = (() => {
           : [];
 
       if (onPage && lecturesForPage.length > 0) {
-        const foundIds = removeFoundCalendarIds(
-          pageLectures,
-          missingCalendarIds,
-        );
+        const foundIds = removeFoundLectureIds(pageLectures, missingIds);
         const previousFoundLectures = previousMissingLectures.filter(
           (lecture) => foundIds.has(Cache.getLectureRecordId(lecture)),
         );
         onPage(lecturesForPage, previousFoundLectures);
       } else {
-        removeFoundCalendarIds(pageLectures, missingCalendarIds);
+        removeFoundLectureIds(pageLectures, missingIds);
+      }
+
+      if (stopWhenMissingIdsFound && missingIds.size === 0) {
+        return;
       }
     }
 
     if (endPage === totalPages) {
-      const staleCalendarIds = new Set(missingCalendarIds);
-      const staleLectures = getCachedLectureSnapshots(staleCalendarIds);
-      missingCalendarIds.clear();
+      const staleHistoryIds = new Set(missingIds);
+      const staleLectures = getCachedLectureSnapshots(staleHistoryIds);
+      missingIds.clear();
       Cache.markHistoryLectureCacheComplete(path);
       Cache.markPastLectureCacheComplete(path);
-      Cache.removeHistoryLectureIds(path, staleCalendarIds);
+      Cache.removeHistoryLectureIds(path, staleHistoryIds);
       if (onPage && staleLectures.length > 0) {
-        onPage([], staleLectures, staleCalendarIds);
+        onPage([], staleLectures, staleHistoryIds);
       }
     }
   }
@@ -231,20 +229,19 @@ const Service = (() => {
       Cache.markHistoryLectureCacheComplete(path);
     }
     const hasCompleteHistoryCache = Cache.hasCompleteHistoryLectureCache(path);
-    const missingCalendarIds = getMissingCalendarLectureIds(
+    const missingHistoryIds = getMissingHistoryLectureIds(
       path,
       fetchedLectures,
-      startDate,
     );
     if (scannedAllPages) {
-      Cache.removeHistoryLectureIds(path, missingCalendarIds);
+      Cache.removeHistoryLectureIds(path, missingHistoryIds);
     }
     const shouldLoadRemainingHistory =
       firstPastPage !== null &&
       !scannedAllPages &&
       (!hasCompleteHistoryCache ||
         !hasFreshPastCache ||
-        missingCalendarIds.size > 0);
+        missingHistoryIds.size > 0);
 
     return {
       lectures: updateLectures(
@@ -267,7 +264,8 @@ const Service = (() => {
                 startDate,
                 onPage,
                 true,
-                missingCalendarIds,
+                missingHistoryIds,
+                hasCompleteHistoryCache && hasFreshPastCache,
               )
           : null,
     };
@@ -294,23 +292,21 @@ const Service = (() => {
       }
     }
 
-    const missingCalendarIds = getMissingCalendarLectureIds(
-      path,
-      lectures,
-      startDate,
-    );
+    const missingHistoryIds = getMissingHistoryLectureIds(path, lectures);
     const scannedAllPages =
       firstPastPage === null || firstPastPage === totalPages;
 
     if (scannedAllPages) {
       Cache.markPastLectureCacheComplete(path);
       Cache.markHistoryLectureCacheComplete(path);
-      Cache.removeHistoryLectureIds(path, missingCalendarIds);
+      Cache.removeHistoryLectureIds(path, missingHistoryIds);
     } else {
       const hasCompleteHistoryCache =
         Cache.hasCompleteHistoryLectureCache(path);
       const shouldScanRemainingHistory =
-        !hasCompleteHistoryCache || missingCalendarIds.size > 0;
+        !hasCompleteHistoryCache ||
+        !hasFreshPastCache ||
+        missingHistoryIds.size > 0;
       if (shouldScanRemainingHistory && firstPastPage < totalPages) {
         await cachePastLecturePages(
           path,
@@ -322,7 +318,8 @@ const Service = (() => {
             lectures.push(...pageLectures);
           },
           false,
-          missingCalendarIds,
+          missingHistoryIds,
+          hasCompleteHistoryCache && hasFreshPastCache,
         );
       }
     }
