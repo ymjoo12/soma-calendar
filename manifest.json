@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "소마 멘토링 시간표",
-  "version": "26.5.14.0",
+  "version": "26.5.20.0",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -29,7 +29,7 @@
         "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/view.do*",
         "https://swmaestro.ai/busan/sw/mypage/mentoLec/view.do*"
       ],
-      "js": ["src/cache.js"]
+      "js": ["src/constants.js", "src/cache.js"]
     },
     {
       "matches": [
@@ -38,8 +38,15 @@
         "https://*.swmaestro.ai/busan/sw/mypage/userAnswer/history.do*",
         "https://swmaestro.ai/busan/sw/mypage/userAnswer/history.do*"
       ],
-      "js": ["src/cache.js", "src/utils.js", "src/content.js"],
-      "css": ["src/calendar.css"]
+      "js": [
+        "src/constants.js",
+        "src/cache.js",
+        "src/utils.js",
+        "src/client.js",
+        "src/service.js",
+        "src/pages/calendar.js"
+      ],
+      "css": ["src/pages/page.css"]
     },
     {
       "matches": [
@@ -48,8 +55,15 @@
         "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*",
         "https://swmaestro.ai/busan/sw/mypage/mentoLec/list.do?*"
       ],
-      "js": ["src/cache.js", "src/utils.js", "src/lecture.js"],
-      "css": ["src/calendar.css"]
+      "js": [
+        "src/constants.js",
+        "src/cache.js",
+        "src/utils.js",
+        "src/client.js",
+        "src/service.js",
+        "src/pages/lecture-list.js"
+      ],
+      "css": ["src/pages/page.css"]
     },
     {
       "matches": [
@@ -58,7 +72,14 @@
         "https://*.swmaestro.ai/busan/sw/mypage/mentoLec/view.do*",
         "https://swmaestro.ai/busan/sw/mypage/mentoLec/view.do*"
       ],
-      "js": ["src/cache.js", "src/utils.js", "src/lecture-item.js"]
+      "js": [
+        "src/constants.js",
+        "src/cache.js",
+        "src/utils.js",
+        "src/client.js",
+        "src/service.js",
+        "src/pages/lecture-detail.js"
+      ]
     }
   ],
   "browser_specific_settings": {

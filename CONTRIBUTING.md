@@ -87,7 +87,7 @@ UI가 바뀌거나 새 기능이 추가되는 PR은 **변경 전/후 스크린�
 
 2. **N+1 호출 패턴이 생기지 않았는가?**
 
-   `src/utils.js`의 `getAllLectures()`는 페이지 수만큼, `src/content.js`의 `updateCalendarElement()`는 접수 내역 수만큼 이미 직렬 `fetch`를 수행합니다. 여기에 `await`을 하나 더 추가하면 전체 렌더 시간이 배로 늘어납니다. 추가 호출이 필요한 경우 `Promise.all`로 병렬화하거나 기존 응답 파싱 단계에서 같이 뽑아낼 수 있는지 먼저 검토해주세요.
+   `src/service.js`의 `getAllLectures()`는 페이지 수만큼, `src/pages/calendar.js`의 `updateCalendarElement()`는 접수 내역 수만큼 `fetch`를 수행합니다. 여기에 `await`을 하나 더 추가하면 전체 렌더 시간이 배로 늘어납니다. 추가 호출이 필요한 경우 병렬 상한을 두거나 기존 응답 파싱 단계에서 같이 뽑아낼 수 있는지 먼저 검토해주세요.
 
 ## ✅ PR 체크리스트
 

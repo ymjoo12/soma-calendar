@@ -14,47 +14,8 @@ const rowIsOnlineMap = new Map();
 let rowOnlineStatusPromise = null;
 let onlineFilterUpdateQueued = false;
 
-function isBusanLecturePage() {
-  return getSwPathPrefix() === "/busan";
-}
-
-function getListRows() {
-  return document.querySelectorAll(
-    "#listFrm > div.boardlist.mt50 > table > tbody > tr",
-  );
-}
-
-function getListRowLecture(row) {
-  const link = row.querySelector('a[href*="mentoLec/view.do"]');
-  const dateTimeText = row
-    .querySelector("td:nth-child(4)")
-    ?.innerText.replace(/\u00a0/g, " ");
-  const [dateStr, timeRangeStr] =
-    dateTimeText
-      ?.split("\n")
-      .map((text) => text.trim())
-      .filter(Boolean) ?? [];
-  const title = row.querySelector(".tit")?.innerText.trim();
-  if (!link || !dateStr || !timeRangeStr) {
-    return null;
-  }
-
-  return {
-    url: setPageIndexToOne(link.href),
-    title,
-    dateStr,
-    timeRangeStr,
-    lectureId: getLectureId(link.href),
-  };
-}
-
-function updateLectureListPageCache() {
-  for (const row of getListRows()) {
-    const lecture = getListRowLecture(row);
-    if (lecture) {
-      updateLectureCache(lecture);
-    }
-  }
+function getLectureListItems() {
+  return Service.getLectureListItemsFromDocument(document);
 }
 
 async function loadAllRowOnlineStatuses() {
@@ -62,15 +23,12 @@ async function loadAllRowOnlineStatuses() {
     return rowOnlineStatusPromise;
   }
 
-  rowOnlineStatusPromise = mapWithConcurrency(
-    Array.from(getListRows()),
+  rowOnlineStatusPromise = Utils.mapWithConcurrency(
+    getLectureListItems(),
     LECTURE_DETAIL_CONCURRENCY_LIMIT,
-    async (row) => {
-      const link = row.querySelector('a[href*="mentoLec/view.do"]');
-      if (!link) return;
-
+    async ({ row, lecture }) => {
       try {
-        const detail = await getLectureDetail(link.href, {
+        const detail = await Service.getLectureDetail(lecture.url, {
           requiredFields: ["isOnline"],
         });
         rowIsOnlineMap.set(row, detail?.isOnline ?? null);
@@ -97,7 +55,7 @@ function queueApplyOnlineFilter() {
 }
 
 function applyOnlineFilter() {
-  for (const row of getListRows()) {
+  for (const { row } of getLectureListItems()) {
     if (currentOnlineFilter === "all") {
       row.style.display = "";
       continue;
@@ -113,7 +71,7 @@ function applyOnlineFilter() {
 }
 
 function insertOnlineFilterUI() {
-  if (!isBusanLecturePage()) return;
+  if (!Utils.isBusanCenterPage()) return;
 
   const existingTabs = document.querySelector("ul.tabs-sort");
   if (!existingTabs) return;
@@ -270,9 +228,7 @@ async function enrichCalendarPopup(item, token) {
   renderCalendarPopupDetail(container, { loading: true });
 
   try {
-    const detail = await getLectureDetail(detailLink.href, {
-      forceRefresh: true,
-      preferPastCache: true,
+    const detail = await Service.getLectureDetail(detailLink.href, {
       requiredFields: [
         "location",
         "timeStr",
@@ -357,14 +313,15 @@ function observeCalendarPopups() {
   }
 }
 
-function renderConflictLectures(popupElement, conflictingLectures) {
-  popupElement.replaceChildren();
+// Overlap warnings
+function renderOverlapPopup(overlapPopupElement, overlappingLectures) {
+  overlapPopupElement.replaceChildren();
 
   const title = document.createElement("h4");
   title.textContent = "겹치는 멘토링 목록";
-  popupElement.appendChild(title);
+  overlapPopupElement.appendChild(title);
 
-  for (const lecture of conflictingLectures) {
+  for (const lecture of overlappingLectures) {
     const lectureElement = document.createElement("div");
     lectureElement.className = "overlap-lecture";
 
@@ -380,96 +337,96 @@ function renderConflictLectures(popupElement, conflictingLectures) {
     timeRow.textContent = `일시: ${lecture.dateStr} ${lecture.timeRangeStr}`;
 
     lectureElement.append(titleRow, authorRow, timeRow);
-    popupElement.appendChild(lectureElement);
+    overlapPopupElement.appendChild(lectureElement);
   }
 }
 
-if (isBusanLecturePage()) {
+if (Utils.isBusanCenterPage()) {
   insertOnlineFilterUI();
 }
-updateLectureListPageCache();
 
-if (isBusanLecturePage() && currentOnlineFilter !== "all") {
+if (Utils.isBusanCenterPage() && currentOnlineFilter !== "all") {
   applyOnlineFilter();
 }
 
-getAllLectures().then((lectures) => {
-  const lecturesDictionary = convertLectureDictionary(lectures);
-  const lectureDates = document.querySelectorAll(
-    "#listFrm > div.boardlist.mt50 > table > tbody > tr > td:nth-child(4)",
-  );
+Service.getAllLectures().then((lectures) => {
+  const lecturesDictionary = Utils.convertLectureDictionary(lectures);
 
-  const popupElement = document.createElement("div");
-  popupElement.className = "overlap-popup";
-  document.body.appendChild(popupElement);
+  const overlapPopupElement = document.createElement("div");
+  overlapPopupElement.className = "overlap-popup";
+  document.body.appendChild(overlapPopupElement);
 
-  for (let i = 0; i < lectureDates.length; i++) {
-    const [datePart, timePart] = lectureDates[i].innerText.split("\n");
+  for (const {
+    row: lectureRow,
+    lecture: rowLecture,
+  } of getLectureListItems()) {
+    const datePart = rowLecture.dateStr;
+    const timePart = rowLecture.timeRangeStr;
     if (!lecturesDictionary.hasOwnProperty(datePart)) {
       continue;
     }
 
     let targetList = lecturesDictionary[datePart];
     let [startMin, endMin] = timePart.split(" ~ ");
-    let hasConflict = false;
-    let conflictingLectures = [];
-
-    const lectureRow = lectureDates[i].parentElement;
+    let hasOverlap = false;
+    let overlappingLectures = [];
 
     for (let j = 0; j < targetList.length; j++) {
       let [targetStartMin, targetEndMin] = targetList[j].split(" ~ ");
 
-      if (getMin(endMin) <= getMin(targetStartMin)) {
+      if (Utils.getMin(endMin) <= Utils.getMin(targetStartMin)) {
         continue;
       }
 
-      if (getMin(startMin) >= getMin(targetEndMin)) {
+      if (Utils.getMin(startMin) >= Utils.getMin(targetEndMin)) {
         continue;
       }
 
-      const conflictLecture = lectures.find(
+      const overlappingLecture = lectures.find(
         (lec) => lec.dateStr === datePart && lec.timeRangeStr === targetList[j],
       );
 
-      if (conflictLecture) {
-        hasConflict = true;
-        conflictingLectures.push(conflictLecture);
+      if (overlappingLecture) {
+        hasOverlap = true;
+        overlappingLectures.push(overlappingLecture);
       }
     }
 
-    if (hasConflict) {
+    if (hasOverlap) {
       lectureRow.classList.add("conflict-item");
       lectureRow.style.color = "red";
       lectureRow.querySelector(".tit").style.color = "red";
 
       lectureRow.addEventListener("mousemove", (e) => {
-        renderConflictLectures(popupElement, conflictingLectures);
-        popupElement.style.display = "block";
+        renderOverlapPopup(overlapPopupElement, overlappingLectures);
+        overlapPopupElement.style.display = "block";
 
         const offset = 15;
-        popupElement.style.left = e.clientX + offset + "px";
-        popupElement.style.top = e.clientY + offset + "px";
+        overlapPopupElement.style.left = e.clientX + offset + "px";
+        overlapPopupElement.style.top = e.clientY + offset + "px";
 
-        const popupRect = popupElement.getBoundingClientRect();
-        if (popupRect.right > window.innerWidth) {
-          popupElement.style.left = e.clientX - popupRect.width - offset + "px";
+        const overlapPopupRect = overlapPopupElement.getBoundingClientRect();
+        if (overlapPopupRect.right > window.innerWidth) {
+          overlapPopupElement.style.left =
+            e.clientX - overlapPopupRect.width - offset + "px";
         }
-        if (popupRect.bottom > window.innerHeight) {
-          popupElement.style.top = e.clientY - popupRect.height - offset + "px";
+        if (overlapPopupRect.bottom > window.innerHeight) {
+          overlapPopupElement.style.top =
+            e.clientY - overlapPopupRect.height - offset + "px";
         }
       });
 
       lectureRow.addEventListener("mouseleave", () => {
-        popupElement.style.display = "none";
+        overlapPopupElement.style.display = "none";
       });
     }
   }
 
   document.addEventListener("scroll", () => {
-    if (popupElement.style.display === "block") {
+    if (overlapPopupElement.style.display === "block") {
       const activeItem = document.querySelector(".conflict-item:hover");
       if (!activeItem) {
-        popupElement.style.display = "none";
+        overlapPopupElement.style.display = "none";
       }
     }
   });
