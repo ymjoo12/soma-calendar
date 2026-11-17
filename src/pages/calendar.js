@@ -162,7 +162,7 @@ function formatDateKey(date) {
 function getRenderedCalendarLecture(ev) {
   const url = ev.querySelector("a")?.href;
   const location = ev.querySelector('[data-role="location"]')?.innerText;
-  if (!url || !location || location === "장소 로딩중..") {
+  if (!url || !location || location === "장소 로딩중.." || location === "-") {
     return null;
   }
 
