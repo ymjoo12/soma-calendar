@@ -673,7 +673,7 @@ function generateICS(lecture) {
   const end = toICSDate(lecture.endAt);
   const title = lecture.title.replace(/\n/g, " ");
   const description = `멘토: ${lecture.author}`;
-  const location = lecture.location;
+  const locationLine = lecture.location ? `LOCATION:${lecture.location}\n` : "";
   const url = lecture.url;
 
   return `BEGIN:VCALENDAR
@@ -684,8 +684,7 @@ SUMMARY:${title}
 DTSTART:${start}
 DTEND:${end}
 DESCRIPTION:${description}\\n${url}
-LOCATION:${location}
-URL:${url}
+${locationLine}URL:${url}
 STATUS:CONFIRMED
 SEQUENCE:0
 BEGIN:VALARM
