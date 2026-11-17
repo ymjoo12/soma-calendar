@@ -397,7 +397,7 @@ function renderCalendarLecture(ev, lecture) {
   setLectureText(ev, "title", lecture.title);
   setLectureText(ev, "author", lecture.author);
   setLectureText(ev, "time", lecture.timeRangeStr);
-  setLectureText(ev, "location", lecture.location);
+  setLectureText(ev, "location", lecture.location || "-");
 
   const peopleElem = ev.querySelector('[data-role="people"]');
   const peopleText = getCalendarPeopleText(lecture);
