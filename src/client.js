@@ -101,7 +101,7 @@ const Client = (() => {
     };
   }
 
-  function parseLectureHistoryDocument(container) {
+  function parseLectureHistoryDocument(container, page) {
     const totalText = container
       .querySelector(".bbs-total strong.color-blue")
       ?.nextSibling?.textContent.trim();
@@ -124,11 +124,24 @@ const Client = (() => {
       ) {
         throw new Error("History rows contradict the empty registration count");
       }
-      return { total, totalPages: 0, lectures: [] };
+      return {
+        total,
+        totalPages: 0,
+        lectures: [],
+        hasExpectedRowNumbers: false,
+      };
     }
-    if (rows.length === 0) {
-      throw new Error("Missing lecture history rows");
+    const firstRowNumber = total - (page - 1) * LECTURE_HISTORY_PAGE_SIZE;
+    const expectedRows = Math.min(LECTURE_HISTORY_PAGE_SIZE, firstRowNumber);
+    if (expectedRows <= 0 || rows.length !== expectedRows) {
+      throw new Error("Incomplete lecture history page");
     }
+    // Only the native descending NO. layout can establish page identity.
+    const hasExpectedRowNumbers = [...rows].every(
+      (row, index) =>
+        row.querySelectorAll("td")[0]?.innerText.trim() ===
+        String(firstRowNumber - index),
+    );
     const lectures = Utils.normalizeLectureDates(
       [...rows].map(parseLectureHistoryRow).filter(Boolean),
     );
@@ -145,6 +158,7 @@ const Client = (() => {
       total,
       totalPages: Math.ceil(total / LECTURE_HISTORY_PAGE_SIZE),
       lectures,
+      hasExpectedRowNumbers,
     };
   }
 
@@ -231,16 +245,19 @@ const Client = (() => {
     return new DOMParser().parseFromString(await res.text(), "text/html");
   }
 
-  async function fetchHistoryDocument(url) {
-    return parseLectureHistoryDocument(await fetchDocument(url));
+  async function fetchHistoryDocument(url, page = 1) {
+    return parseLectureHistoryDocument(await fetchDocument(url), page);
   }
 
-  async function fetchLecturePage(path, page, expectedTotal) {
-    const { total, lectures } = await fetchHistoryDocument(
-      path + "&pageIndex=" + page,
-    );
+  async function fetchLecturePage(path, page, expectedTotal, verifyRowNumbers) {
+    const { total, lectures, hasExpectedRowNumbers } =
+      await fetchHistoryDocument(path + "&pageIndex=" + page, page);
     if (expectedTotal !== undefined && total !== expectedTotal) {
       throw new Error("Lecture history count changed during pagination");
+    }
+    // Other numbering layouts remain supported without this optional check.
+    if (verifyRowNumbers && !hasExpectedRowNumbers) {
+      throw new Error("Unexpected lecture history page");
     }
     return lectures;
   }

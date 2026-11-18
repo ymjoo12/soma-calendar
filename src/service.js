@@ -80,7 +80,12 @@ const Service = (() => {
       return firstPage.lectures;
     }
 
-    const lectures = await Client.fetchLecturePage(path, page, firstPage.total);
+    const lectures = await Client.fetchLecturePage(
+      path,
+      page,
+      firstPage.total,
+      firstPage.hasExpectedRowNumbers,
+    );
     Cache.writeHistoryPageCache(path, page, lectures, previousLectureCount);
     return lectures;
   }
