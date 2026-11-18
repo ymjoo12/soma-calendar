@@ -266,39 +266,46 @@ const Cache = (() => {
   function writeLectureRecord(lecture, requestBaseline) {
     const id = getLectureRecordId(lecture);
     const currentRecord = readLectureRecord(id);
+    const previous = currentRecord?.fields ?? {};
     const now = Date.now();
     const incomingFields = pickLectureFields({ ...lecture, lectureId: id });
     if (requestBaseline !== undefined && currentRecord) {
       // Re-reading the same list row also refreshes its timestamp.
       const changedSinceRequest = (field) =>
-        currentRecord.fields[field] !== requestBaseline?.fields[field];
-      if (
-        changedSinceRequest("dateStr") ||
-        changedSinceRequest("timeRangeStr")
-      ) {
-        delete incomingFields.dateStr;
-        delete incomingFields.timeRangeStr;
-        const { dateStr, timeRangeStr } = currentRecord.fields;
-        if (
-          (incomingFields.timeStr || currentRecord.fields.timeStr) &&
-          dateStr &&
-          timeRangeStr
-        ) {
-          incomingFields.timeStr = `${dateStr} ${timeRangeStr}`;
+        previous[field] !== requestBaseline?.fields[field];
+      // Preserve the whole group if a newer observation changed any member.
+      for (const group of [
+        ["deliveryMethod", "isOnline"],
+        ["capacityText", "totalCount"],
+        ["dateStr", "timeRangeStr", "timeStr"],
+      ]) {
+        if (group.some(changedSinceRequest)) {
+          for (const field of group) delete incomingFields[field];
         }
       }
       for (const field of Object.keys(incomingFields)) {
         if (changedSinceRequest(field)) delete incomingFields[field];
       }
     }
-    const fields = {
-      ...(currentRecord?.fields ?? {}),
-      ...incomingFields,
-    };
+    const fields = { ...previous, ...incomingFields };
     const fieldSavedAt = { ...(currentRecord?.fieldSavedAt ?? {}) };
 
     for (const field of Object.keys(incomingFields)) {
       fieldSavedAt[field] = now;
+    }
+    // History can reschedule a lecture without supplying the detail popup's time text.
+    const { dateStr, timeRangeStr } = fields;
+    const scheduleChanged =
+      dateStr !== previous.dateStr || timeRangeStr !== previous.timeRangeStr;
+    const needsPopupTime = previous.timeStr
+      ? scheduleChanged
+      : !!lecture.timeStr;
+    if (needsPopupTime && !incomingFields.timeStr && dateStr && timeRangeStr) {
+      fields.timeStr = `${dateStr} ${timeRangeStr}`;
+      fieldSavedAt.timeStr = Math.max(
+        fieldSavedAt.dateStr,
+        fieldSavedAt.timeRangeStr,
+      );
     }
 
     const nextRecord = {
