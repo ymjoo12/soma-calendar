@@ -1,4 +1,5 @@
 let lectures = [];
+let unverifiedIds = new Set();
 const LOCATION_UNAVAILABLE = "장소 확인 불가";
 const CALENDAR_BASE_DETAIL_FIELDS = [
   "dateStr",
@@ -91,7 +92,8 @@ function createCalendarLectureElement(
 
   const buttonGroup = document.createElement("div");
   buttonGroup.className = "button-group";
-  const isCancelUnavailable = !ev.cancelId;
+  const needsHistory = unverifiedIds.has(ev.lectureId);
+  const isCancelUnavailable = !ev.cancelId || needsHistory;
   buttonGroup.append(
     createCalendarButton(
       "export-btn",
@@ -108,9 +110,11 @@ function createCalendarLectureElement(
     createCalendarButton(
       "cancel-btn",
       "❌ 취소",
-      isCancelUnavailable
-        ? "Cancel unavailable (접수 취소 불가)"
-        : "Cancel (접수 취소)",
+      needsHistory
+        ? "접수내역 확인 전에는 취소할 수 없습니다"
+        : isCancelUnavailable
+          ? "Cancel unavailable (접수 취소 불가)"
+          : "Cancel (접수 취소)",
       ev.url,
       isCancelUnavailable ? "unavailable" : isAlreadyPassed ? "past" : "",
       isCancelUnavailable,
@@ -315,6 +319,7 @@ async function generateCalendarElement() {
 
   const calendarLectures = await Service.getCalendarLectures(startDate);
   lectures = calendarLectures.lectures;
+  unverifiedIds = calendarLectures.unverifiedIds;
 
   wrapper.appendChild(createPastButton(wrapper, startDate, today));
 

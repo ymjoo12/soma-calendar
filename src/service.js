@@ -244,6 +244,7 @@ const Service = (() => {
       Cache.markHistoryLectureCacheComplete(path);
       return {
         lectures: [],
+        unverifiedIds: new Set(),
         loadPastLectures: null,
       };
     }
@@ -294,6 +295,8 @@ const Service = (() => {
         missingHistoryIds.size > 0);
 
     return {
+      // This set shrinks as background pages confirm cached registrations.
+      unverifiedIds: missingHistoryIds,
       lectures: updateLectures(
         freshLectures,
         firstPastPage === null
