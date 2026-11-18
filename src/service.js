@@ -91,15 +91,15 @@ const Service = (() => {
   }
 
   function loadLectureDetail(key, requestUrl) {
-    return Cache.loadLectureDetailRequest(key, async (isCurrentRequest) => {
+    return Cache.loadLectureDetailRequest(key, async (isCurrent, baseline) => {
       const detail = await Client.fetchLectureDetail(requestUrl);
       const lecture = {
         ...detail,
         lectureId: key,
         url: requestUrl,
       };
-      if (isCurrentRequest()) {
-        return Cache.updateLectureCache(lecture);
+      if (isCurrent()) {
+        return Cache.updateLectureCache(lecture, baseline);
       }
 
       // Clearing the cache must not let an older request repopulate it.

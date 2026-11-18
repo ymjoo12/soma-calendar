@@ -263,11 +263,34 @@ const Cache = (() => {
     };
   }
 
-  function writeLectureRecord(lecture) {
+  function writeLectureRecord(lecture, requestBaseline) {
     const id = getLectureRecordId(lecture);
     const currentRecord = readLectureRecord(id);
     const now = Date.now();
     const incomingFields = pickLectureFields({ ...lecture, lectureId: id });
+    if (requestBaseline !== undefined && currentRecord) {
+      // Re-reading the same list row also refreshes its timestamp.
+      const changedSinceRequest = (field) =>
+        currentRecord.fields[field] !== requestBaseline?.fields[field];
+      if (
+        changedSinceRequest("dateStr") ||
+        changedSinceRequest("timeRangeStr")
+      ) {
+        delete incomingFields.dateStr;
+        delete incomingFields.timeRangeStr;
+        const { dateStr, timeRangeStr } = currentRecord.fields;
+        if (
+          (incomingFields.timeStr || currentRecord.fields.timeStr) &&
+          dateStr &&
+          timeRangeStr
+        ) {
+          incomingFields.timeStr = `${dateStr} ${timeRangeStr}`;
+        }
+      }
+      for (const field of Object.keys(incomingFields)) {
+        if (changedSinceRequest(field)) delete incomingFields[field];
+      }
+    }
     const fields = {
       ...(currentRecord?.fields ?? {}),
       ...incomingFields,
@@ -753,8 +776,10 @@ const Cache = (() => {
     writeHistoryLectureState(path, true);
   }
 
-  function updateLectureCache(lecture) {
-    return getLectureObjectFromRecord(writeLectureRecord(lecture));
+  function updateLectureCache(lecture, requestBaseline) {
+    return getLectureObjectFromRecord(
+      writeLectureRecord(lecture, requestBaseline),
+    );
   }
 
   // Cached requests
@@ -764,7 +789,9 @@ const Cache = (() => {
     }
 
     const isCurrent = () => lectureDetailRequests.get(key) === request;
-    const request = createRequest(isCurrent).finally(() => {
+    // The preceding TTL check already loaded the record into memory.
+    const baseline = lectureRecordMemory.get(key) ?? null;
+    const request = createRequest(isCurrent, baseline).finally(() => {
       if (isCurrent()) lectureDetailRequests.delete(key);
     });
 
