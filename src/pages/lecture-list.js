@@ -13,9 +13,11 @@ let currentOnlineFilter = loadSavedOnlineFilter();
 const rowIsOnlineMap = new Map();
 let rowOnlineStatusPromise = null;
 let onlineFilterUpdateQueued = false;
+let lectureListItems = null;
 
 function getLectureListItems() {
-  return Service.getLectureListItemsFromDocument(document);
+  lectureListItems ??= Service.getLectureListItemsFromDocument(document);
+  return lectureListItems;
 }
 
 async function loadAllRowOnlineStatuses() {
@@ -23,8 +25,11 @@ async function loadAllRowOnlineStatuses() {
     return rowOnlineStatusPromise;
   }
 
+  const pendingItems = getLectureListItems().filter(
+    ({ row }) => typeof rowIsOnlineMap.get(row) !== "boolean",
+  );
   rowOnlineStatusPromise = Utils.mapWithConcurrency(
-    getLectureListItems(),
+    pendingItems,
     LECTURE_DETAIL_CONCURRENCY_LIMIT,
     async ({ row, lecture }) => {
       try {
@@ -38,7 +43,9 @@ async function loadAllRowOnlineStatuses() {
       }
       queueApplyOnlineFilter();
     },
-  );
+  ).finally(() => {
+    rowOnlineStatusPromise = null;
+  });
   return rowOnlineStatusPromise;
 }
 
@@ -55,13 +62,8 @@ function queueApplyOnlineFilter() {
 }
 
 function applyOnlineFilter() {
-  for (const { row } of getLectureListItems()) {
-    if (currentOnlineFilter === "all") {
-      row.style.display = "";
-      continue;
-    }
-    const isOnline = rowIsOnlineMap.get(row);
-    if (isOnline === undefined || isOnline === null) {
+  for (const [row, isOnline] of rowIsOnlineMap) {
+    if (currentOnlineFilter === "all" || typeof isOnline !== "boolean") {
       row.style.display = "";
       continue;
     }
@@ -78,6 +80,13 @@ function insertOnlineFilterUI() {
 
   const onlineTabsList = document.createElement("ul");
   onlineTabsList.className = "tabs-sort soma-online-tabs";
+
+  function applySelection() {
+    if (currentOnlineFilter !== "all") {
+      loadAllRowOnlineStatuses().catch((error) => console.error(error));
+    }
+    applyOnlineFilter();
+  }
 
   for (const { text, value } of [
     { text: "전체", value: "all" },
@@ -100,13 +109,7 @@ function insertOnlineFilterUI() {
       currentOnlineFilter = value;
       saveOnlineFilter(value);
 
-      if (value !== "all") {
-        loadAllRowOnlineStatuses().catch((error) => {
-          console.error(error);
-        });
-      }
-
-      applyOnlineFilter();
+      applySelection();
     });
 
     li.appendChild(a);
@@ -114,6 +117,7 @@ function insertOnlineFilterUI() {
   }
 
   existingTabs.after(onlineTabsList);
+  applySelection();
 }
 
 // Calendar popup enrichment
@@ -343,10 +347,6 @@ function renderOverlapPopup(overlapPopupElement, overlappingLectures) {
 
 if (Utils.isBusanCenterPage()) {
   insertOnlineFilterUI();
-}
-
-if (Utils.isBusanCenterPage() && currentOnlineFilter !== "all") {
-  applyOnlineFilter();
 }
 
 function highlightOverlappingLectures(lectures) {
