@@ -395,10 +395,10 @@ function getCalendarPeopleText(lecture) {
   const peopleText = hasPeopleCounts
     ? `${lecture.appliedCount}명 / ${lecture.totalCount}명`
     : lecture.capacityText;
-  if (!peopleText) {
-    return null;
-  }
-  return peopleText + (lecture.isApproved ? " [개설 확정]" : " [미승인]");
+  if (peopleText === undefined) return "인원 확인 불가";
+  return (
+    (peopleText ?? "-") + (lecture.isApproved ? " [개설 확정]" : " [미승인]")
+  );
 }
 
 function renderCalendarLecture(ev, lecture) {
@@ -412,9 +412,8 @@ function renderCalendarLecture(ev, lecture) {
   setLectureText(ev, "location", lecture.location);
 
   const peopleElem = ev.querySelector('[data-role="people"]');
-  const peopleText = getCalendarPeopleText(lecture);
-  if (peopleElem && peopleText) {
-    peopleElem.innerText = peopleText;
+  if (peopleElem) {
+    peopleElem.innerText = getCalendarPeopleText(lecture);
     peopleElem.style.color = "";
     if (!lecture.isApproved && !ev.classList.contains("ended")) {
       // Keep past lectures visually muted even when approval is missing.

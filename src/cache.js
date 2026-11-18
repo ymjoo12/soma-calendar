@@ -22,6 +22,8 @@ const Cache = (() => {
     "cancelGubun",
     "location",
     "isOnline",
+    "capacityText",
+    "totalCount",
   ]);
 
   function hasLectureFieldValue(field, value) {

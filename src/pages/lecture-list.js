@@ -182,7 +182,7 @@ function renderCalendarPopupDetail(container, detail) {
   const fields = [
     ["시간", detail.timeStr],
     ["장소", detail.location],
-    ["인원", peopleText],
+    ["인원", peopleText === undefined ? "인원 확인 불가" : (peopleText ?? "-")],
   ];
 
   for (const [label, value] of fields) {

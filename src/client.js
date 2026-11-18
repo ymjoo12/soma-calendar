@@ -228,7 +228,8 @@ const Client = (() => {
       timeStr,
       ...getDetailTimeFields(timeStr),
       appliedCount: getAppliedCount(appliedSummary),
-      totalCount: getPeopleCount(capacityText),
+      totalCount:
+        capacityText === undefined ? undefined : getPeopleCount(capacityText),
       isApproved: approvedText ? approvedText === "OK" : null,
       applyId: cancelBtn
         ? cancelBtn.getAttribute("onclick").split("'")[3]
