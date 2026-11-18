@@ -13,12 +13,14 @@ const Service = (() => {
     for (const lectureGroup of lectureGroups) {
       for (const lecture of lectureGroup) {
         const key = Cache.getLectureRecordId(lecture);
-        if (
-          uncachedLectureDetails.has(lecture) &&
-          (!lecture.dateStr || !lecture.timeRangeStr)
-        ) {
+        if (uncachedLectureDetails.has(lecture)) {
           const visible = lectureMap.get(key);
-          if (visible?.dateStr && visible.timeRangeStr) {
+          if (visible?.title) lecture.title ??= visible.title;
+          if (
+            (!lecture.dateStr || !lecture.timeRangeStr) &&
+            visible?.dateStr &&
+            visible.timeRangeStr
+          ) {
             lecture.dateStr = visible.dateStr;
             lecture.timeRangeStr = visible.timeRangeStr;
           }
