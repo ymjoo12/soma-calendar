@@ -17,6 +17,19 @@ const Cache = (() => {
   const lectureRecordMemory = new Map();
   const lectureObjectMemory = new Map();
   const lectureDetailRequests = new Map();
+  const nullableLectureFields = new Set([
+    "cancelId",
+    "cancelGubun",
+    "location",
+    "isOnline",
+  ]);
+
+  function hasLectureFieldValue(field, value) {
+    return (
+      value !== undefined &&
+      (value !== null || nullableLectureFields.has(field))
+    );
+  }
 
   // Cache keys
   function getLectureDetailCacheKey(url) {
@@ -146,7 +159,7 @@ const Cache = (() => {
     }
 
     for (const [field, value] of Object.entries(record.fields)) {
-      if (value !== undefined && value !== null) {
+      if (hasLectureFieldValue(field, value)) {
         lecture[field] = value;
       }
     }
@@ -193,10 +206,13 @@ const Cache = (() => {
   }
 
   function hasLectureFields(record, fields) {
-    return fields.every(
-      (field) =>
-        record.fields[field] !== undefined && record.fields[field] !== null,
-    );
+    return fields.every((field) => {
+      const value = record.fields[field];
+      // A missing delivery method clears the last classification and needs a retry.
+      return field === "isOnline"
+        ? typeof value === "boolean"
+        : hasLectureFieldValue(field, value);
+    });
   }
 
   function hasFreshLectureFields(record, fields) {
@@ -217,7 +233,7 @@ const Cache = (() => {
   function pickLectureFields(lecture) {
     const fields = {};
     for (const field of LECTURE_RECORD_FIELDS) {
-      if (lecture[field] !== undefined && lecture[field] !== null) {
+      if (hasLectureFieldValue(field, lecture[field])) {
         fields[field] = lecture[field];
       }
     }
@@ -520,8 +536,7 @@ const Cache = (() => {
     writeHistoryLectureState(path, false);
   }
 
-  function mergeHistoryOrderWithPage(path, page, lectures) {
-    const pageStartIndex = (Number(page) - 1) * LECTURE_HISTORY_PAGE_SIZE;
+  function mergeHistoryOrderWithPage(path, lectures, pageStartIndex) {
     const pageEntries = lectures.map(getLectureOrderEntry);
     const pageIds = pageEntries.map((entry) => entry.id);
     const orderEntries =
@@ -543,7 +558,7 @@ const Cache = (() => {
       (entry) => !pageIdSet.has(entry.id),
     );
 
-    nextOrderEntries.splice(pageStartIndex, pageIds.length, ...pageEntries);
+    nextOrderEntries.splice(pageStartIndex, 0, ...pageEntries);
     writeLectureOrder(
       path,
       LECTURE_ORDER_HISTORY_LATEST,
@@ -569,7 +584,12 @@ const Cache = (() => {
     );
   }
 
-  function writeHistoryPageCache(path, page, lectures) {
+  function writeHistoryPageCache(
+    path,
+    page,
+    lectures,
+    previousLectureCount = 0,
+  ) {
     writeLectureRecords(lectures);
 
     if (String(page) === PAGE_ONE) {
@@ -577,7 +597,7 @@ const Cache = (() => {
       return;
     }
 
-    mergeHistoryOrderWithPage(path, page, lectures);
+    mergeHistoryOrderWithPage(path, lectures, previousLectureCount);
   }
 
   // Past lectures
@@ -743,8 +763,9 @@ const Cache = (() => {
       return lectureDetailRequests.get(key);
     }
 
-    const request = createRequest().finally(() => {
-      lectureDetailRequests.delete(key);
+    const isCurrent = () => lectureDetailRequests.get(key) === request;
+    const request = createRequest(isCurrent).finally(() => {
+      if (isCurrent()) lectureDetailRequests.delete(key);
     });
 
     lectureDetailRequests.set(key, request);
@@ -789,6 +810,7 @@ const Cache = (() => {
     try {
       lectureRecordMemory.clear();
       lectureObjectMemory.clear();
+      lectureDetailRequests.clear();
       removeCacheKeysByPrefix(sessionStorage, prefixes);
     } catch (error) {
       console.error(error);

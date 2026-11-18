@@ -349,7 +349,7 @@ if (Utils.isBusanCenterPage() && currentOnlineFilter !== "all") {
   applyOnlineFilter();
 }
 
-Service.getAllLectures().then((lectures) => {
+function highlightOverlappingLectures(lectures) {
   const lecturesDictionary = Utils.convertLectureDictionary(lectures);
 
   const overlapPopupElement = document.createElement("div");
@@ -430,6 +430,9 @@ Service.getAllLectures().then((lectures) => {
       }
     }
   });
+}
 
-  observeCalendarPopups();
-});
+Service.getAllLectures()
+  .then(highlightOverlappingLectures)
+  .catch((error) => console.error(error))
+  .finally(observeCalendarPopups);

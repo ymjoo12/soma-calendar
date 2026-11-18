@@ -1,4 +1,5 @@
 let lectures = [];
+const LOCATION_UNAVAILABLE = "장소 확인 불가";
 const CALENDAR_BASE_DETAIL_FIELDS = [
   "dateStr",
   "timeRangeStr",
@@ -217,7 +218,10 @@ function refreshVisibleCalendarCells(
     const renderedLectureByUrl = new Map();
     for (const oldEventElem of cell.querySelectorAll(".calendar-lecture")) {
       const renderedLecture = getRenderedCalendarLecture(oldEventElem);
-      if (renderedLecture) {
+      if (
+        renderedLecture &&
+        renderedLecture.location !== LOCATION_UNAVAILABLE
+      ) {
         renderedLectureByUrl.set(renderedLecture.url, renderedLecture);
       }
     }
@@ -393,6 +397,9 @@ function getCalendarPeopleText(lecture) {
 }
 
 function renderCalendarLecture(ev, lecture) {
+  if (lecture.location === undefined) {
+    lecture = { ...lecture, location: LOCATION_UNAVAILABLE };
+  }
   ev.title = lecture.title;
   setLectureText(ev, "title", lecture.title);
   setLectureText(ev, "author", lecture.author);
@@ -624,6 +631,16 @@ async function updateCalendarLectureElement(ev, wrapper, today) {
       eventDetails,
     );
   } catch (error) {
+    if (
+      ev.querySelector('[data-role="location"]')?.innerText === "장소 로딩중.."
+    ) {
+      setLectureText(ev, "location", LOCATION_UNAVAILABLE);
+    }
+    if (
+      ev.querySelector('[data-role="people"]')?.innerText === "인원수 로딩중.."
+    ) {
+      setLectureText(ev, "people", "인원 확인 불가");
+    }
     console.error(error);
   }
 }

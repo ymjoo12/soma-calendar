@@ -1,5 +1,5 @@
 // Overlap warning
-Service.getAllLectures().then((lectures) => {
+function warnIfOverlapping(lectures) {
   const lecturesDictionary =
     Utils.convertLectureDictionaryWithoutDate(lectures);
   const thisLectureId = Utils.getLectureId(location.href);
@@ -29,4 +29,8 @@ Service.getAllLectures().then((lectures) => {
     alert("시간이 겹치는 강의입니다. 신청하시기 전에 주의해주세요.");
     break;
   }
-});
+}
+
+Service.getAllLectures()
+  .then(warnIfOverlapping)
+  .catch((error) => console.error(error));

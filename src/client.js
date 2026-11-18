@@ -1,9 +1,5 @@
 const Client = (() => {
   // Shared parsing
-  function parseHtmlDocument(html) {
-    return new DOMParser().parseFromString(html, "text/html");
-  }
-
   function getDetailTimeFields(timeStr) {
     if (typeof timeStr !== "string") {
       return {};
@@ -35,9 +31,10 @@ const Client = (() => {
     const group = [...container.querySelectorAll("div.top .group")].find(
       (item) => item.querySelector(".t")?.innerText.trim() === label,
     );
-    return (
-      group?.querySelector(".c")?.innerText.replace(/\s+/g, " ").trim() || null
-    );
+    const value = group?.querySelector(".c");
+    return value
+      ? value.innerText.replace(/\s+/g, " ").trim() || null
+      : undefined;
   }
 
   function getPeopleCount(text) {
@@ -52,7 +49,7 @@ const Client = (() => {
   function parseLectureHistoryRow(row) {
     const tds = row.querySelectorAll("td");
     if (tds.length < 8) {
-      return null;
+      throw new Error("Incomplete lecture history row");
     }
 
     const applied = tds[6].innerText.trim();
@@ -61,10 +58,14 @@ const Client = (() => {
     }
 
     const url = Utils.setPageIndexToOne(tds[2].querySelector("a")?.href);
+    // Deleted lectures can still have a history row without a detail link.
+    if (!url) {
+      return null;
+    }
     const title = tds[2].innerText.trim();
     const author = tds[3].innerText.trim();
-    if (!url || !title || !author) {
-      return null;
+    if (!title || !author) {
+      throw new Error("Incomplete registered lecture");
     }
 
     const [dateStr, timeRangeStr] = tds[4].innerText
@@ -73,7 +74,7 @@ const Client = (() => {
       .map((str) => str.trim())
       .filter(Boolean);
     if (!dateStr || !timeRangeStr) {
-      return null;
+      throw new Error("Missing registered lecture schedule");
     }
 
     const isApproved = tds[7].innerText.trim() === "OK";
@@ -84,7 +85,8 @@ const Client = (() => {
       /delDate\('([^']+)'\s*,\s*'([^']+)'\s*,\s*'([^']+)'\)/,
     );
     const params = new URL(url).searchParams;
-    const lectureId = cancelMatch?.[2] || params.get("qustnrSn");
+    const lectureId = params.get("qustnrSn") || cancelMatch?.[2];
+    const canCancel = cancelMatch && cancelMatch[2] === lectureId;
 
     return {
       url,
@@ -94,16 +96,56 @@ const Client = (() => {
       timeRangeStr,
       isApproved,
       lectureId,
-      cancelId: cancelMatch?.[1] || null,
-      cancelGubun: cancelMatch?.[3] || null,
+      cancelId: canCancel ? cancelMatch[1] : null,
+      cancelGubun: canCancel ? cancelMatch[3] : null,
     };
   }
 
   function parseLectureHistoryDocument(container) {
-    const rows = container.querySelectorAll(
-      "#contentsList > div > div > div.boardlist > div.tbl-ovx > table > tbody > tr",
+    const totalText = container
+      .querySelector(".bbs-total strong.color-blue")
+      ?.nextSibling?.textContent.trim();
+    const count = totalText?.match(
+      /^:?\s*(\d{1,3}(?:,\d{3})+|\d+)(?:\s*건)?(?=\s|$)/,
     );
-    return [...rows].map(parseLectureHistoryRow).filter(Boolean);
+    const total = count ? Number(count[1].replace(/,/g, "")) : NaN;
+    const table = container.querySelector(
+      "#contentsList > div > div > div.boardlist > div.tbl-ovx > table",
+    );
+    if (!Number.isSafeInteger(total) || !table) {
+      throw new Error("Invalid lecture history document");
+    }
+
+    const rows = table.querySelectorAll(":scope > tbody > tr");
+    if (total === 0) {
+      if (
+        rows.length > 1 ||
+        (rows.length === 1 && rows[0].querySelectorAll("td").length !== 1)
+      ) {
+        throw new Error("History rows contradict the empty registration count");
+      }
+      return { total, totalPages: 0, lectures: [] };
+    }
+    if (rows.length === 0) {
+      throw new Error("Missing lecture history rows");
+    }
+    const lectures = Utils.normalizeLectureDates(
+      [...rows].map(parseLectureHistoryRow).filter(Boolean),
+    );
+    if (
+      lectures.some(
+        (lecture) =>
+          Number.isNaN(lecture.startAt.getTime()) ||
+          Number.isNaN(lecture.endAt.getTime()),
+      )
+    ) {
+      throw new Error("Invalid registered lecture schedule");
+    }
+    return {
+      total,
+      totalPages: Math.ceil(total / LECTURE_HISTORY_PAGE_SIZE),
+      lectures,
+    };
   }
 
   // Lecture list page
@@ -157,13 +199,17 @@ const Client = (() => {
         .trim() || "";
     const deliveryMethod = getTopValue(container, "진행방식");
     const timeStr = getTopValue(container, "강의날짜");
+    const title = getTopValue(container, "모집 명");
+    if (!title && !timeStr) {
+      throw new Error("Invalid lecture detail document");
+    }
 
     return {
-      title: getTopValue(container, "모집 명"),
+      title,
       author: getTopValue(container, "작성자"),
       location: getTopValue(container, "장소"),
       deliveryMethod,
-      isOnline: deliveryMethod?.includes("온라인") ?? false,
+      isOnline: deliveryMethod ? deliveryMethod.includes("온라인") : null,
       capacityText,
       timeStr,
       ...getDetailTimeFields(timeStr),
@@ -177,41 +223,35 @@ const Client = (() => {
   }
 
   // Network requests
-  async function fetchLectureHistoryHead(path) {
-    const res = await fetch(path, { credentials: "include" });
-    const html = await res.text();
-    const container = parseHtmlDocument(html);
-    const totalStr = container.querySelector(".bbs-total strong.color-blue")
-      ?.nextSibling?.textContent;
-    const total = parseInt(totalStr?.replace(":", "")?.trim()) || 0;
-
-    return {
-      totalPages: Math.ceil(total / 10),
-      lectures: Utils.normalizeLectureDates(
-        parseLectureHistoryDocument(container),
-      ),
-    };
+  async function fetchDocument(url) {
+    const res = await fetch(url, { credentials: "include" });
+    if (!res.ok) {
+      throw new Error(`Lecture request failed (HTTP ${res.status})`);
+    }
+    return new DOMParser().parseFromString(await res.text(), "text/html");
   }
 
-  async function fetchLecturePage(path, page) {
-    const res = await fetch(path + "&pageIndex=" + page, {
-      credentials: "include",
-    });
-    const html = await res.text();
-    return Utils.normalizeLectureDates(
-      parseLectureHistoryDocument(parseHtmlDocument(html)),
+  async function fetchHistoryDocument(url) {
+    return parseLectureHistoryDocument(await fetchDocument(url));
+  }
+
+  async function fetchLecturePage(path, page, expectedTotal) {
+    const { total, lectures } = await fetchHistoryDocument(
+      path + "&pageIndex=" + page,
     );
+    if (expectedTotal !== undefined && total !== expectedTotal) {
+      throw new Error("Lecture history count changed during pagination");
+    }
+    return lectures;
   }
 
   async function fetchLectureDetail(url) {
-    const res = await fetch(url, { credentials: "include" });
-    const html = await res.text();
-    return parseLectureDetailDocument(parseHtmlDocument(html));
+    return parseLectureDetailDocument(await fetchDocument(url));
   }
 
   return {
     fetchLectureDetail,
-    fetchLectureHistoryHead,
+    fetchLectureHistoryHead: fetchHistoryDocument,
     fetchLecturePage,
     parseLectureDetailDocument,
     parseLectureListDocument,

@@ -1,4 +1,7 @@
 const Service = (() => {
+  // Keep invalidated results usable without writing them back to the cache.
+  const uncachedLectureDetails = new WeakSet();
+
   // Lecture identity
   function getLectureCacheIds(lectures) {
     return new Set(lectures.map(Cache.getLectureRecordId));
@@ -10,14 +13,27 @@ const Service = (() => {
     for (const lectureGroup of lectureGroups) {
       for (const lecture of lectureGroup) {
         const key = Cache.getLectureRecordId(lecture);
-        const record = Cache.readLectureRecord(key);
-        lectureMap.set(
-          key,
-          record ? Cache.getLectureObjectFromRecord(record) : lecture,
-        );
+        if (
+          uncachedLectureDetails.has(lecture) &&
+          (!lecture.dateStr || !lecture.timeRangeStr)
+        ) {
+          const visible = lectureMap.get(key);
+          if (visible?.dateStr && visible.timeRangeStr) {
+            lecture.dateStr = visible.dateStr;
+            lecture.timeRangeStr = visible.timeRangeStr;
+          }
+        }
+        lectureMap.set(key, lecture);
       }
     }
-    return Utils.normalizeLectureDates(Array.from(lectureMap.values()));
+    const lectures = Array.from(lectureMap, ([key, lecture]) => {
+      const record = Cache.readLectureRecord(key);
+      if (!record) return lecture;
+      return uncachedLectureDetails.has(lecture)
+        ? Object.assign(lecture, record.fields)
+        : Cache.getLectureObjectFromRecord(record);
+    });
+    return Utils.normalizeLectureDates(lectures);
   }
 
   function getLectureListItemsFromDocument(container) {
@@ -48,30 +64,48 @@ const Service = (() => {
 
   async function getLectureHistoryHead(path) {
     const firstPage = await Client.fetchLectureHistoryHead(path);
-    Cache.writeHistoryPageCache(path, PAGE_ONE, firstPage.lectures);
+    Cache.writeHistoryPageCache(path, PAGE_ONE, firstPage.lectures, 0);
     return firstPage;
   }
 
-  async function getLiveLecturePage(path, page, firstPage) {
+  async function getLiveLecturePage(
+    path,
+    page,
+    firstPage,
+    previousLectureCount,
+  ) {
     if (page === 1 && firstPage) {
       return firstPage.lectures;
     }
 
-    const lectures = await Client.fetchLecturePage(path, page);
-    Cache.writeHistoryPageCache(path, page, lectures);
+    const lectures = await Client.fetchLecturePage(path, page, firstPage.total);
+    Cache.writeHistoryPageCache(path, page, lectures, previousLectureCount);
     return lectures;
   }
 
   function loadLectureDetail(key, requestUrl) {
-    return Cache.loadLectureDetailRequest(key, () =>
-      Client.fetchLectureDetail(requestUrl).then((detail) =>
-        Cache.updateLectureCache({
-          ...detail,
-          lectureId: key,
-          url: requestUrl,
-        }),
-      ),
-    );
+    return Cache.loadLectureDetailRequest(key, async (isCurrentRequest) => {
+      const detail = await Client.fetchLectureDetail(requestUrl);
+      const lecture = {
+        ...detail,
+        lectureId: key,
+        url: requestUrl,
+      };
+      if (isCurrentRequest()) {
+        return Cache.updateLectureCache(lecture);
+      }
+
+      // Clearing the cache must not let an older request repopulate it.
+      Object.assign(lecture, Cache.readLectureRecord(key)?.fields);
+      if (
+        typeof lecture.dateStr === "string" &&
+        typeof lecture.timeRangeStr === "string"
+      ) {
+        Utils.normalizeLectureDates([lecture]);
+      }
+      uncachedLectureDetails.add(lecture);
+      return lecture;
+    });
   }
 
   async function getLectureDetail(url, options = {}) {
@@ -137,18 +171,24 @@ const Service = (() => {
   async function cachePastLecturePages(
     path,
     startPage,
-    endPage,
-    totalPages,
+    firstPage,
+    previousLectureCount,
     startDate,
     onPage,
     includePastLectures = true,
     missingIds = new Set(),
     stopWhenMissingIdsFound = false,
   ) {
-    for (let page = startPage; page <= endPage; page++) {
+    for (let page = startPage; page <= firstPage.totalPages; page++) {
       const previousMissingLectures =
         missingIds.size > 0 ? getCachedLectureSnapshots(missingIds) : [];
-      const pageLectures = await getLiveLecturePage(path, page);
+      const pageLectures = await getLiveLecturePage(
+        path,
+        page,
+        firstPage,
+        previousLectureCount,
+      );
+      previousLectureCount += pageLectures.length;
       const pastLectures = cachePastLecturesFromPage(
         path,
         pageLectures,
@@ -176,16 +216,14 @@ const Service = (() => {
       }
     }
 
-    if (endPage === totalPages) {
-      const staleHistoryIds = new Set(missingIds);
-      const staleLectures = getCachedLectureSnapshots(staleHistoryIds);
-      missingIds.clear();
-      Cache.markHistoryLectureCacheComplete(path);
-      Cache.markPastLectureCacheComplete(path);
-      Cache.removeHistoryLectureIds(path, staleHistoryIds);
-      if (onPage && staleLectures.length > 0) {
-        onPage([], staleLectures, staleHistoryIds);
-      }
+    const staleHistoryIds = new Set(missingIds);
+    const staleLectures = getCachedLectureSnapshots(staleHistoryIds);
+    missingIds.clear();
+    Cache.markHistoryLectureCacheComplete(path);
+    Cache.markPastLectureCacheComplete(path);
+    Cache.removeHistoryLectureIds(path, staleHistoryIds);
+    if (onPage && staleLectures.length > 0) {
+      onPage([], staleLectures, staleHistoryIds);
     }
   }
 
@@ -210,7 +248,12 @@ const Service = (() => {
     let firstPastPage = null;
 
     for (let page = 1; page <= totalPages; page++) {
-      const pageLectures = await getLiveLecturePage(path, page, firstPage);
+      const pageLectures = await getLiveLecturePage(
+        path,
+        page,
+        firstPage,
+        fetchedLectures.length,
+      );
       cachePastLecturesFromPage(path, pageLectures, startDate);
       fetchedLectures.push(...pageLectures);
 
@@ -259,8 +302,8 @@ const Service = (() => {
               cachePastLecturePages(
                 path,
                 firstPastPage + 1,
-                totalPages,
-                totalPages,
+                firstPage,
+                fetchedLectures.length,
                 startDate,
                 onPage,
                 true,
@@ -282,7 +325,12 @@ const Service = (() => {
     let firstPastPage = null;
 
     for (let page = 1; page <= totalPages; page++) {
-      const pageLectures = await getLiveLecturePage(path, page, firstPage);
+      const pageLectures = await getLiveLecturePage(
+        path,
+        page,
+        firstPage,
+        lectures.length,
+      );
       cachePastLecturesFromPage(path, pageLectures, startDate);
 
       lectures.push(...pageLectures);
@@ -311,8 +359,8 @@ const Service = (() => {
         await cachePastLecturePages(
           path,
           firstPastPage + 1,
-          totalPages,
-          totalPages,
+          firstPage,
+          lectures.length,
           startDate,
           (pageLectures) => {
             lectures.push(...pageLectures);
