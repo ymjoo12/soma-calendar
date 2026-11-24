@@ -167,7 +167,7 @@ function formatDateKey(date) {
 function getRenderedCalendarLecture(ev) {
   const url = ev.querySelector("a")?.href;
   const location = ev.querySelector('[data-role="location"]')?.innerText;
-  if (!url || !location || location === "장소 로딩중..") {
+  if (!url || !location || location === "장소 로딩중.." || location === "-") {
     return null;
   }
 
@@ -409,7 +409,7 @@ function renderCalendarLecture(ev, lecture) {
   setLectureText(ev, "title", lecture.title);
   setLectureText(ev, "author", lecture.author);
   setLectureText(ev, "time", lecture.timeRangeStr);
-  setLectureText(ev, "location", lecture.location);
+  setLectureText(ev, "location", lecture.location || "-");
 
   const peopleElem = ev.querySelector('[data-role="people"]');
   if (peopleElem) {
@@ -694,7 +694,7 @@ function generateICS(lecture) {
   const end = toICSDate(lecture.endAt);
   const title = lecture.title.replace(/\n/g, " ");
   const description = `멘토: ${lecture.author}`;
-  const location = lecture.location;
+  const locationLine = lecture.location ? `LOCATION:${lecture.location}\n` : "";
   const url = lecture.url;
 
   return `BEGIN:VCALENDAR
@@ -705,8 +705,7 @@ SUMMARY:${title}
 DTSTART:${start}
 DTEND:${end}
 DESCRIPTION:${description}\\n${url}
-LOCATION:${location}
-URL:${url}
+${locationLine}URL:${url}
 STATUS:CONFIRMED
 SEQUENCE:0
 BEGIN:VALARM

@@ -97,7 +97,7 @@ git clone https://github.com/ymjoo12/soma-calendar.git
 | [@qyinm](https://github.com/qyinm) | 구글 캘린더 추가 기능 | [#22](https://github.com/ymjoo12/soma-calendar/pull/22) |
 | [@softwareDefine](https://github.com/softwareDefine) | 도메인 변경 및 레이아웃 변경 반영 | [#27](https://github.com/ymjoo12/soma-calendar/pull/27), [#29](https://github.com/ymjoo12/soma-calendar/pull/29) |
 | [@lickelon](https://github.com/lickelon) | 멘토링 달력 팝업 정보 개선, 취소 버튼 기능 수정 | [#30](https://github.com/ymjoo12/soma-calendar/pull/30), [#36](https://github.com/ymjoo12/soma-calendar/pull/36) |
-| [@doorcs](https://github.com/doorcs) | 지나간 강의 회색 표시, 코드 포매팅, 레이아웃 변경 fallback 추가, 디자인 수정 | [#32](https://github.com/ymjoo12/soma-calendar/pull/32), [#33](https://github.com/ymjoo12/soma-calendar/pull/33), [#43](https://github.com/ymjoo12/soma-calendar/pull/43) |
+| [@doorcs](https://github.com/doorcs) | 지나간 강의 회색 표시, 코드 포매팅, 레이아웃 변경 fallback 추가, 디자인 수정, 장소 미등록 강의 표시 개선 | [#32](https://github.com/ymjoo12/soma-calendar/pull/32), [#33](https://github.com/ymjoo12/soma-calendar/pull/33), [#43](https://github.com/ymjoo12/soma-calendar/pull/43), [#53](https://github.com/ymjoo12/soma-calendar/pull/53) |
 | [@twkim02](https://github.com/twkim02) | 캘린더 과거 2주 보기 기능 추가 | [#39](https://github.com/ymjoo12/soma-calendar/pull/39) |
 | [@gyuhochoime](https://github.com/gyuhochoime) | 팝업에 부산 센터 링크 추가 | [#45](https://github.com/ymjoo12/soma-calendar/pull/45) |
 | [@OhChangEun](https://github.com/OhChangEun) | 진행방식 필터 (부산 센터), 상세 팝업 스타일 수정, 상세 캐시 | [#47](https://github.com/ymjoo12/soma-calendar/pull/47), [#49](https://github.com/ymjoo12/soma-calendar/pull/49) |
