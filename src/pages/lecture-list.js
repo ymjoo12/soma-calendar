@@ -350,8 +350,6 @@ if (Utils.isBusanCenterPage()) {
 }
 
 function highlightOverlappingLectures(lectures) {
-  const lecturesDictionary = Utils.convertLectureDictionary(lectures);
-
   const overlapPopupElement = document.createElement("div");
   overlapPopupElement.className = "overlap-popup";
   document.body.appendChild(overlapPopupElement);
@@ -360,39 +358,12 @@ function highlightOverlappingLectures(lectures) {
     row: lectureRow,
     lecture: rowLecture,
   } of getLectureListItems()) {
-    const datePart = rowLecture.dateStr;
-    const timePart = rowLecture.timeRangeStr;
-    if (!lecturesDictionary.hasOwnProperty(datePart)) {
-      continue;
-    }
-
-    let targetList = lecturesDictionary[datePart];
-    let [startMin, endMin] = timePart.split(" ~ ");
-    let hasOverlap = false;
-    let overlappingLectures = [];
-
-    for (let j = 0; j < targetList.length; j++) {
-      let [targetStartMin, targetEndMin] = targetList[j].split(" ~ ");
-
-      if (Utils.getMin(endMin) <= Utils.getMin(targetStartMin)) {
-        continue;
-      }
-
-      if (Utils.getMin(startMin) >= Utils.getMin(targetEndMin)) {
-        continue;
-      }
-
-      const overlappingLecture = lectures.find(
-        (lec) => lec.dateStr === datePart && lec.timeRangeStr === targetList[j],
-      );
-
-      if (overlappingLecture) {
-        hasOverlap = true;
-        overlappingLectures.push(overlappingLecture);
-      }
-    }
-
-    if (hasOverlap) {
+    const overlappingLectures = lectures.filter(
+      (lecture) =>
+        rowLecture.startAt < lecture.endAt &&
+        lecture.startAt < rowLecture.endAt,
+    );
+    if (overlappingLectures.length > 0) {
       lectureRow.classList.add("conflict-item");
       lectureRow.style.color = "red";
       lectureRow.querySelector(".tit").style.color = "red";
