@@ -248,14 +248,10 @@ const Cache = (() => {
   function getLectureOrderEntry(lecture) {
     const id =
       typeof lecture === "string" ? lecture : getLectureRecordId(lecture);
-    const record = readLectureRecord(id);
     const fields =
-      typeof lecture === "string"
-        ? { ...(record?.fields ?? {}) }
-        : {
-            ...(record?.fields ?? {}),
-            ...pickLectureFields({ ...lecture, lectureId: id }),
-          };
+      lecture.dateStr != null && lecture.timeRangeStr != null
+        ? lecture
+        : { ...readLectureRecord(id)?.fields, ...pickLectureFields(lecture) };
     const startAt = getLectureStartAt(fields);
     const endAt = getLectureEndAt(fields);
 
@@ -422,11 +418,13 @@ const Cache = (() => {
       return null;
     }
 
-    const currentEntry = getLectureOrderEntry(id);
+    const storedFields =
+      entry.dateStr == null || entry.timeRangeStr == null
+        ? readLectureRecord(id)?.fields
+        : undefined;
     const fields = {
-      ...currentEntry,
-      dateStr: entry.dateStr ?? currentEntry.dateStr,
-      timeRangeStr: entry.timeRangeStr ?? currentEntry.timeRangeStr,
+      dateStr: entry.dateStr ?? storedFields?.dateStr,
+      timeRangeStr: entry.timeRangeStr ?? storedFields?.timeRangeStr,
     };
     const startAt =
       typeof entry.startAt === "number"
