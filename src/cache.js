@@ -459,18 +459,19 @@ const Cache = (() => {
     storageKey,
     entries,
     savedAt = Date.now(),
+    previousRaw,
   ) {
     const items = entries.map(normalizeLectureOrderEntry).filter(Boolean);
     try {
-      storage.setItem(
-        storageKey,
-        JSON.stringify({
-          version: LECTURE_CACHE_VERSION,
-          savedAt,
-          ids: items.map((entry) => entry.id),
-          items,
-        }),
-      );
+      const raw = JSON.stringify({
+        version: LECTURE_CACHE_VERSION,
+        savedAt,
+        ids: items.map((entry) => entry.id),
+        items,
+      });
+      if (raw !== previousRaw) {
+        storage.setItem(storageKey, raw);
+      }
     } catch (error) {
       console.error(error);
     }
@@ -513,7 +514,13 @@ const Cache = (() => {
           ...fields,
           lectureId: id,
         });
-        writeLectureOrderCacheByKey(localStorage, key, entries, cached.savedAt);
+        writeLectureOrderCacheByKey(
+          localStorage,
+          key,
+          entries,
+          cached.savedAt,
+          raw,
+        );
       } catch (error) {
         console.error(error);
       }
