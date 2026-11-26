@@ -62,10 +62,26 @@ const Service = (() => {
     );
   }
 
-  async function getLectureHistoryHead(path) {
-    const firstPage = await Client.fetchLectureHistoryHead(path);
-    Cache.writeHistoryPageCache(path, PAGE_ONE, firstPage.lectures, 0);
-    return firstPage;
+  async function readCurrentHistory(readPages, startDate) {
+    const path = Utils.getLectureHistoryPath();
+    // A foreground reader still needs a result if the popup clears its scan.
+    for (;;) {
+      const generation = Cache.historyGeneration;
+      const isCurrent = () => generation === Cache.historyGeneration;
+      try {
+        const firstPage = await Client.fetchLectureHistoryHead(path);
+        if (!isCurrent()) continue;
+        Cache.writeHistoryPageCache(path, PAGE_ONE, firstPage.lectures, 0);
+        const result = await readPages(
+          path,
+          { ...firstPage, isCurrent },
+          startDate,
+        );
+        if (isCurrent()) return result;
+      } catch (error) {
+        if (isCurrent()) throw error;
+      }
+    }
   }
 
   async function getLiveLecturePage(
@@ -74,9 +90,8 @@ const Service = (() => {
     firstPage,
     previousLectureCount,
   ) {
-    if (page === 1 && firstPage) {
-      return firstPage.lectures;
-    }
+    if (!firstPage.isCurrent()) return [];
+    if (page === 1) return firstPage.lectures;
 
     const lectures = await Client.fetchLecturePage(
       path,
@@ -84,7 +99,9 @@ const Service = (() => {
       firstPage.total,
       firstPage.hasExpectedRowNumbers,
     );
-    Cache.writeHistoryPageCache(path, page, lectures, previousLectureCount);
+    if (firstPage.isCurrent()) {
+      Cache.writeHistoryPageCache(path, page, lectures, previousLectureCount);
+    }
     return lectures;
   }
 
@@ -193,6 +210,7 @@ const Service = (() => {
         firstPage,
         previousLectureCount,
       );
+      if (!firstPage.isCurrent()) return;
       previousLectureCount += pageLectures.length;
       const pastLectures = cachePastLecturesFromPage(
         path,
@@ -221,6 +239,7 @@ const Service = (() => {
       }
     }
 
+    if (!firstPage.isCurrent()) return;
     const staleHistoryIds = new Set(missingIds);
     const staleLectures = getCachedLectureSnapshots(staleHistoryIds);
     missingIds.clear();
@@ -233,9 +252,7 @@ const Service = (() => {
   }
 
   // Page entry points
-  async function getCalendarLectures(startDate) {
-    const path = Utils.getLectureHistoryPath();
-    const firstPage = await getLectureHistoryHead(path);
+  async function getCalendarLectures(path, firstPage, startDate) {
     const totalPages = firstPage.totalPages;
     if (totalPages === 0) {
       Cache.markPastLectureCacheComplete(path);
@@ -260,6 +277,7 @@ const Service = (() => {
         firstPage,
         fetchedLectures.length,
       );
+      if (!firstPage.isCurrent()) return;
       cachePastLecturesFromPage(path, pageLectures, startDate);
       fetchedLectures.push(...pageLectures);
 
@@ -318,14 +336,16 @@ const Service = (() => {
                 missingHistoryIds,
                 hasCompleteHistoryCache && hasFreshPastCache,
               )
+                .catch((error) => {
+                  if (firstPage.isCurrent()) throw error;
+                })
+                .then(firstPage.isCurrent)
           : null,
     };
   }
 
-  async function getAllLectures() {
+  async function getAllLectures(path, firstPage) {
     const lectures = [];
-    const path = Utils.getLectureHistoryPath();
-    const firstPage = await getLectureHistoryHead(path);
     const totalPages = firstPage.totalPages;
     const cachedPast = Cache.readPastLectureCache(path);
     const hasFreshPastCache = cachedPast?.complete === true;
@@ -339,6 +359,7 @@ const Service = (() => {
         firstPage,
         lectures.length,
       );
+      if (!firstPage.isCurrent()) return;
       cachePastLecturesFromPage(path, pageLectures, startDate);
 
       lectures.push(...pageLectures);
@@ -377,6 +398,7 @@ const Service = (() => {
           missingHistoryIds,
           hasCompleteHistoryCache && hasFreshPastCache,
         );
+        if (!firstPage.isCurrent()) return;
       }
     }
 
@@ -388,8 +410,9 @@ const Service = (() => {
   }
 
   return {
-    getAllLectures,
-    getCalendarLectures,
+    getAllLectures: () => readCurrentHistory(getAllLectures),
+    getCalendarLectures: (startDate) =>
+      readCurrentHistory(getCalendarLectures, startDate),
     getLectureDetail,
     getLectureFromDetailDocument,
     getLectureListItemsFromDocument,

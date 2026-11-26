@@ -3,6 +3,8 @@ const Cache = (() => {
   const LECTURE_ORDER_CACHE_PREFIX = "soma-lecture-order:";
   const LECTURE_PAST_STATE_PREFIX = "soma-lecture-past-state:";
   const LECTURE_HISTORY_STATE_PREFIX = "soma-lecture-history-state:";
+  // Older scans could mark a truncated registration order as complete.
+  const HISTORY_STATE_VERSION = `${LECTURE_CACHE_VERSION}:2`;
   const LECTURE_ORDER_HISTORY_LATEST = "history-latest";
   const LEGACY_CACHE_PREFIXES = [
     "soma-lecture-detail:",
@@ -17,6 +19,7 @@ const Cache = (() => {
   const lectureRecordMemory = new Map();
   const lectureObjectMemory = new Map();
   const lectureDetailRequests = new Map();
+  let historyGeneration = 0;
   const nullableLectureFields = new Set([
     "cancelId",
     "cancelGubun",
@@ -673,7 +676,7 @@ const Cache = (() => {
 
       const cached = JSON.parse(raw);
       if (
-        cached.version !== LECTURE_CACHE_VERSION ||
+        cached.version !== HISTORY_STATE_VERSION ||
         typeof cached.savedAt !== "number" ||
         Date.now() - cached.savedAt > LECTURE_PAST_CACHE_TTL_MS
       ) {
@@ -710,7 +713,7 @@ const Cache = (() => {
       localStorage.setItem(
         getLectureHistoryStateKey(path),
         JSON.stringify({
-          version: LECTURE_CACHE_VERSION,
+          version: HISTORY_STATE_VERSION,
           savedAt: Date.now(),
           complete,
         }),
@@ -824,6 +827,7 @@ const Cache = (() => {
   }
 
   function clearAllLectureCache() {
+    historyGeneration++;
     const prefixes = [
       LECTURE_RECORD_CACHE_PREFIX,
       LECTURE_ORDER_CACHE_PREFIX,
@@ -843,6 +847,7 @@ const Cache = (() => {
   }
 
   function clearHistorySessionCache() {
+    historyGeneration++;
     const prefixes = [
       LECTURE_RECORD_CACHE_PREFIX,
       LECTURE_ORDER_CACHE_PREFIX,
@@ -871,6 +876,9 @@ const Cache = (() => {
   }
 
   return {
+    get historyGeneration() {
+      return historyGeneration;
+    },
     clearAllLectureCache,
     clearHistorySessionCache,
     getCachedCalendarLectureIds,

@@ -204,8 +204,10 @@ function refreshVisibleCalendarCells(
   extraDateKeys = [],
   knownLectures = [],
 ) {
+  // A replacement snapshot rebuilds every visible day from fresh data.
+  const refreshAll = changedLectures === undefined;
   const changedDateKeys = new Set(
-    changedLectures.map((lecture) => formatDateKey(lecture.startAt)),
+    (changedLectures ?? []).map((lecture) => formatDateKey(lecture.startAt)),
   );
   for (const dateKey of extraDateKeys) {
     changedDateKeys.add(dateKey);
@@ -216,11 +218,14 @@ function refreshVisibleCalendarCells(
   const cells = wrapper.querySelectorAll(".calendar-cell[data-calendar-date]");
   const refreshedEventElems = [];
   for (const cell of cells) {
-    if (!changedDateKeys.has(cell.dataset.calendarDate)) {
+    if (!refreshAll && !changedDateKeys.has(cell.dataset.calendarDate)) {
       continue;
     }
     const renderedLectureByUrl = new Map();
-    for (const oldEventElem of cell.querySelectorAll(".calendar-lecture")) {
+    const oldEventElems = refreshAll
+      ? []
+      : cell.querySelectorAll(".calendar-lecture");
+    for (const oldEventElem of oldEventElems) {
       const renderedLecture = getRenderedCalendarLecture(oldEventElem);
       if (
         renderedLecture &&
@@ -310,6 +315,36 @@ function createPastButton(wrapper, startDate, today) {
   return cell;
 }
 
+async function loadRemainingCalendarLectures(
+  calendarLectures,
+  wrapper,
+  today,
+  startDate,
+) {
+  while (calendarLectures.loadPastLectures) {
+    const isCurrent = await calendarLectures.loadPastLectures(
+      (pageLectures, previousLectures = [], removedIds) => {
+        if (removedIds?.size) {
+          lectures = lectures.filter(
+            (lecture) => !removedIds.has(Cache.getLectureRecordId(lecture)),
+          );
+        }
+        lectures = Service.updateLectures(lectures, pageLectures);
+        refreshVisibleCalendarCells(wrapper, today, [
+          ...previousLectures,
+          ...pageLectures,
+        ]);
+      },
+    );
+    if (isCurrent) return;
+
+    calendarLectures = await Service.getCalendarLectures(startDate);
+    lectures = calendarLectures.lectures;
+    unverifiedIds = calendarLectures.unverifiedIds;
+    refreshVisibleCalendarCells(wrapper, today);
+  }
+}
+
 async function generateCalendarElement() {
   const today = new Date();
   const startDate = new Date(today);
@@ -329,25 +364,12 @@ async function generateCalendarElement() {
     wrapper.appendChild(createDayCell(date, today, lectures));
   }
 
-  if (calendarLectures.loadPastLectures) {
-    calendarLectures
-      .loadPastLectures((pageLectures, previousLectures = [], removedIds) => {
-        const removedIdSet = removedIds ?? new Set();
-        if (removedIdSet.size > 0) {
-          lectures = lectures.filter(
-            (lecture) => !removedIdSet.has(Cache.getLectureRecordId(lecture)),
-          );
-        }
-        lectures = Service.updateLectures(lectures, pageLectures);
-        refreshVisibleCalendarCells(wrapper, today, [
-          ...previousLectures,
-          ...pageLectures,
-        ]);
-      })
-      .catch((error) => {
-        console.error(error);
-      });
-  }
+  loadRemainingCalendarLectures(
+    calendarLectures,
+    wrapper,
+    today,
+    startDate,
+  ).catch((error) => console.error(error));
 
   return wrapper;
 }
