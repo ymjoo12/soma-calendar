@@ -199,8 +199,8 @@ const Service = (() => {
     onPage,
     includePastLectures = true,
     missingIds = new Set(),
-    stopWhenMissingIdsFound = false,
   ) {
+    // Unread pages may contain registrations that were previously cancelled.
     for (let page = startPage; page <= firstPage.totalPages; page++) {
       const previousMissingLectures =
         missingIds.size > 0 ? getCachedLectureSnapshots(missingIds) : [];
@@ -233,10 +233,6 @@ const Service = (() => {
       } else {
         removeFoundLectureIds(pageLectures, missingIds);
       }
-
-      if (stopWhenMissingIdsFound && missingIds.size === 0) {
-        return;
-      }
     }
 
     if (!firstPage.isCurrent()) return;
@@ -266,8 +262,6 @@ const Service = (() => {
 
     const freshLectures = [];
     const fetchedLectures = [];
-    const cachedPast = Cache.readPastLectureCache(path);
-    const hasFreshPastCache = cachedPast?.complete === true;
     let firstPastPage = null;
 
     for (let page = 1; page <= totalPages; page++) {
@@ -291,24 +285,15 @@ const Service = (() => {
 
     const scannedAllPages =
       firstPastPage === null || firstPastPage === totalPages;
-    if (scannedAllPages) {
-      Cache.markPastLectureCacheComplete(path);
-      Cache.markHistoryLectureCacheComplete(path);
-    }
-    const hasCompleteHistoryCache = Cache.hasCompleteHistoryLectureCache(path);
     const missingHistoryIds = getMissingHistoryLectureIds(
       path,
       fetchedLectures,
     );
     if (scannedAllPages) {
+      Cache.markPastLectureCacheComplete(path);
+      Cache.markHistoryLectureCacheComplete(path);
       Cache.removeHistoryLectureIds(path, missingHistoryIds);
     }
-    const shouldLoadRemainingHistory =
-      firstPastPage !== null &&
-      !scannedAllPages &&
-      (!hasCompleteHistoryCache ||
-        !hasFreshPastCache ||
-        missingHistoryIds.size > 0);
 
     return {
       // This set shrinks as background pages confirm cached registrations.
@@ -322,25 +307,23 @@ const Service = (() => {
           ? []
           : Cache.getCachedPastLectures(path, startDate),
       ),
-      loadPastLectures:
-        shouldLoadRemainingHistory && firstPastPage + 1 <= totalPages
-          ? (onPage) =>
-              cachePastLecturePages(
-                path,
-                firstPastPage + 1,
-                firstPage,
-                fetchedLectures.length,
-                startDate,
-                onPage,
-                true,
-                missingHistoryIds,
-                hasCompleteHistoryCache && hasFreshPastCache,
-              )
-                .catch((error) => {
-                  if (firstPage.isCurrent()) throw error;
-                })
-                .then(firstPage.isCurrent)
-          : null,
+      loadPastLectures: scannedAllPages
+        ? null
+        : (onPage) =>
+            cachePastLecturePages(
+              path,
+              firstPastPage + 1,
+              firstPage,
+              fetchedLectures.length,
+              startDate,
+              onPage,
+              true,
+              missingHistoryIds,
+            )
+              .catch((error) => {
+                if (firstPage.isCurrent()) throw error;
+              })
+              .then(firstPage.isCurrent),
     };
   }
 
@@ -378,28 +361,31 @@ const Service = (() => {
       Cache.markHistoryLectureCacheComplete(path);
       Cache.removeHistoryLectureIds(path, missingHistoryIds);
     } else {
-      const hasCompleteHistoryCache =
-        Cache.hasCompleteHistoryLectureCache(path);
-      const shouldScanRemainingHistory =
-        !hasCompleteHistoryCache ||
-        !hasFreshPastCache ||
-        missingHistoryIds.size > 0;
-      if (shouldScanRemainingHistory && firstPastPage < totalPages) {
-        await cachePastLecturePages(
-          path,
-          firstPastPage + 1,
-          firstPage,
-          lectures.length,
-          startDate,
-          (pageLectures) => {
-            lectures.push(...pageLectures);
-          },
-          false,
-          missingHistoryIds,
-          hasCompleteHistoryCache && hasFreshPastCache,
-        );
-        if (!firstPage.isCurrent()) return;
-      }
+      const hadCompleteCache =
+        hasFreshPastCache && Cache.hasCompleteHistoryLectureCache(path);
+      await cachePastLecturePages(
+        path,
+        firstPastPage + 1,
+        firstPage,
+        lectures.length,
+        startDate,
+        (pageLectures) => {
+          lectures.push(...pageLectures);
+        },
+        false,
+        missingHistoryIds,
+      ).catch((error) => {
+        // Keep verified overlap warnings if only the additional tail scan failed.
+        if (
+          !hadCompleteCache ||
+          missingHistoryIds.size > 0 ||
+          !firstPage.isCurrent()
+        ) {
+          throw error;
+        }
+        console.error(error);
+      });
+      if (!firstPage.isCurrent()) return;
     }
 
     return updateLectures(

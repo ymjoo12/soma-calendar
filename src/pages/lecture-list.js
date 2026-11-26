@@ -405,5 +405,5 @@ function highlightOverlappingLectures(lectures) {
 
 Service.getAllLectures()
   .then(highlightOverlappingLectures)
-  .catch((error) => console.error(error))
-  .finally(observeCalendarPopups);
+  .catch((error) => console.error(error));
+observeCalendarPopups();
