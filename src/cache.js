@@ -298,7 +298,12 @@ const Cache = (() => {
     // History can reschedule a lecture without supplying the detail popup's time text.
     const { dateStr, timeRangeStr } = fields;
     const scheduleChanged =
-      dateStr !== previous.dateStr || timeRangeStr !== previous.timeRangeStr;
+      (dateStr !== previous.dateStr ||
+        timeRangeStr !== previous.timeRangeStr) &&
+      (getLectureStartAt(fields)?.getTime() !==
+        getLectureStartAt(previous)?.getTime() ||
+        getLectureEndAt(fields)?.getTime() !==
+          getLectureEndAt(previous)?.getTime());
     const needsPopupTime = previous.timeStr
       ? scheduleChanged
       : !!lecture.timeStr;

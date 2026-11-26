@@ -20,11 +20,12 @@ const Client = (() => {
     const formatTime = ([, hour, minute = "0"]) =>
       `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
     const weekday = timeStr.match(/\([^)]+\)/)?.[0] || "";
-
-    return {
+    const fields = {
       dateStr: `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}${weekday}`,
       timeRangeStr: `${formatTime(timeMatches[0])} ~ ${formatTime(timeMatches[1])}`,
     };
+    const [{ startAt, endAt }] = Utils.normalizeLectureDates([{ ...fields }]);
+    return startAt < endAt && startAt.getDate() === Number(day) ? fields : {};
   }
 
   function getTopValue(container, label) {
