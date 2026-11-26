@@ -572,9 +572,18 @@ async function getCalendarLectureForAction(ev, lecture) {
   const previousDateKey = formatDateKey(lecture.startAt);
   const previousStartAt = lecture.startAt.getTime();
   const previousEndAt = lecture.endAt.getTime();
-  const eventDetails = await Service.getLectureDetail(lecture.url, {
-    requiredFields: CALENDAR_ACTION_DETAIL_FIELDS,
-  });
+  let eventDetails;
+  try {
+    eventDetails = await Service.getLectureDetail(lecture.url, {
+      requiredFields: CALENDAR_ACTION_DETAIL_FIELDS,
+    });
+  } catch (error) {
+    const card = getLectureByUrl(lecture.url) || lecture;
+    if (card.title && card.startAt?.getTime() < card.endAt?.getTime()) {
+      return card;
+    }
+    throw error;
+  }
 
   if (ev.isConnected) {
     updateCalendarLectureRender(
