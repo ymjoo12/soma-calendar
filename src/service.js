@@ -15,15 +15,13 @@ const Service = (() => {
         const key = Cache.getLectureRecordId(lecture);
         const visible = lectureMap.get(key);
         if (visible?.title) lecture.title ??= visible.title;
-        if (uncachedLectureDetails.has(lecture)) {
-          if (
-            (!lecture.dateStr || !lecture.timeRangeStr) &&
-            visible?.dateStr &&
-            visible.timeRangeStr
-          ) {
-            lecture.dateStr = visible.dateStr;
-            lecture.timeRangeStr = visible.timeRangeStr;
-          }
+        if (
+          (!lecture.dateStr || !lecture.timeRangeStr) &&
+          visible?.dateStr &&
+          visible.timeRangeStr
+        ) {
+          lecture.dateStr = visible.dateStr;
+          lecture.timeRangeStr = visible.timeRangeStr;
         }
         lectureMap.set(key, lecture);
       }

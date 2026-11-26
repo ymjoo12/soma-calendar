@@ -595,9 +595,15 @@ async function getCalendarLectureForAction(ev, lecture) {
       previousEndAt,
       eventDetails,
     );
+    return getLectureByUrl(lecture.url) || eventDetails;
   }
 
-  return getLectureByUrl(lecture.url) || eventDetails;
+  // Finish the export even if the calendar has rebuilt or removed this card.
+  const [latest] = Service.updateLectures(
+    [getLectureByUrl(lecture.url) || lecture],
+    [eventDetails],
+  );
+  return latest;
 }
 
 async function updateCalendarLectureElement(ev, wrapper, today) {
