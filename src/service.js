@@ -132,19 +132,12 @@ const Service = (() => {
 
   async function getLectureDetail(url, options = {}) {
     const requiredFields = options.requiredFields ?? LECTURE_RECORD_FIELDS;
-    const key = Cache.getLectureDetailCacheKey(url);
-
-    const cachedPast = Cache.getCachedPastLectureFields(url, requiredFields);
-    if (cachedPast) {
-      return cachedPast;
-    }
-
     const cached = Cache.getCachedLectureFields(url, requiredFields);
     if (cached) {
       return cached;
     }
 
-    return loadLectureDetail(key, url);
+    return loadLectureDetail(Cache.getLectureDetailCacheKey(url), url);
   }
 
   // History pagination
