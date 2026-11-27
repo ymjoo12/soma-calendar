@@ -82,7 +82,13 @@ const Client = (() => {
       throw new Error("Incomplete registered lecture");
     }
 
-    const [dateStr, timeRangeStr] = tds[4].innerText
+    const scheduleCell = tds[4];
+    // Detached history documents don't include <br> line breaks in innerText.
+    if (scheduleCell.childElementCount) {
+      for (const br of scheduleCell.querySelectorAll("br"))
+        br.replaceWith("\n");
+    }
+    const [dateStr, timeRangeStr] = scheduleCell.innerText
       .replace(/\u00a0/g, " ")
       .split("\n")
       .map((str) => str.trim())
