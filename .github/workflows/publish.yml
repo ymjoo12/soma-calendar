@@ -20,7 +20,7 @@ jobs:
       version: ${{ steps.release.outputs.version }}
       release_notes: ${{ steps.release.outputs.release_notes }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Resolve release metadata
         id: release
@@ -60,7 +60,7 @@ jobs:
         run: gh release upload "${{ steps.release.outputs.version }}" extension.zip --clobber
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: extension-${{ steps.release.outputs.version }}
           path: extension.zip
@@ -70,7 +70,7 @@ jobs:
     runs-on: ubuntu-latest
     if: vars.CHROME_PUBLISH_ENABLED == 'true'
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: extension-${{ needs.build.outputs.version || github.ref_name }}
 
@@ -88,12 +88,12 @@ jobs:
     runs-on: ubuntu-latest
     if: vars.FIREFOX_PUBLISH_ENABLED == 'true'
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: extension-${{ needs.build.outputs.version || github.ref_name }}
 
       - name: Publish to Firefox Add-ons
-        uses: browser-actions/release-firefox-addon@v0.2.1
+        uses: browser-actions/release-firefox-addon@v0
         with:
           addon-id: ${{ secrets.FIREFOX_ADDON_ID }}
           addon-path: extension.zip
