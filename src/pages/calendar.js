@@ -1097,6 +1097,33 @@ async function updateCalendarLectureElement(ev, wrapper) {
   }
 }
 
+const calendarDetailWaiters = [];
+const calendarCardLoads = new WeakMap();
+let activeCalendarDetails = 0;
+
+async function loadCalendarCard(ev, wrapper) {
+  if (activeCalendarDetails < LECTURE_DETAIL_CONCURRENCY_LIMIT) {
+    activeCalendarDetails++;
+  } else {
+    await new Promise((resolve) => calendarDetailWaiters.push(resolve));
+  }
+  try {
+    // Another response may already have painted this card while it waited.
+    if (
+      ev.isConnected &&
+      (ev.querySelector('[data-role="location"]')?.innerText ===
+        "장소 로딩중.." ||
+        ev.dataset.detailLoadFailed)
+    ) {
+      await updateCalendarLectureElement(ev, wrapper);
+    }
+  } finally {
+    const next = calendarDetailWaiters.shift();
+    if (next) next();
+    else activeCalendarDetails--;
+  }
+}
+
 async function updateCalendarElement(
   eventElems,
   wrapper = document.getElementById("history-calendar"),
@@ -1116,10 +1143,16 @@ async function updateCalendarElement(
       ev.querySelector('[data-role="location"]')?.innerText === "장소 로딩중..",
   );
   refreshCancellationButtons();
-  await Utils.mapWithConcurrency(
-    targetEventElems,
-    LECTURE_DETAIL_CONCURRENCY_LIMIT,
-    (ev) => updateCalendarLectureElement(ev, wrapper),
+  await Promise.all(
+    targetEventElems.map((ev) => {
+      if (!calendarCardLoads.has(ev)) {
+        const load = loadCalendarCard(ev, wrapper).finally(() =>
+          calendarCardLoads.delete(ev),
+        );
+        calendarCardLoads.set(ev, load);
+      }
+      return calendarCardLoads.get(ev);
+    }),
   );
 }
 
