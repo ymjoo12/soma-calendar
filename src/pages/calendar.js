@@ -176,7 +176,6 @@ function getRenderedCalendarLecture(ev) {
     url,
     title: ev.querySelector('[data-role="title"]')?.innerText,
     author: ev.querySelector('[data-role="author"]')?.innerText,
-    timeRangeStr: ev.querySelector('[data-role="time"]')?.innerText,
     location,
     peopleText: peopleElem?.innerText,
     peopleColor: peopleElem?.style.color,
@@ -187,7 +186,6 @@ function renderPreservedCalendarLecture(ev, rendered) {
   ev.title = rendered.title;
   setLectureText(ev, "title", rendered.title);
   setLectureText(ev, "author", rendered.author);
-  setLectureText(ev, "time", rendered.timeRangeStr);
   setLectureText(ev, "location", rendered.location);
 
   const peopleElem = ev.querySelector('[data-role="people"]');
