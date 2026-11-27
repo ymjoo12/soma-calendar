@@ -199,6 +199,22 @@ function hasRenderedLocation(ev) {
   );
 }
 
+function isCalendarControlVisible(control, wrapper) {
+  const rect = control.getBoundingClientRect();
+  const grid = wrapper.getBoundingClientRect();
+  const left = Math.max(0, grid.left, rect.left);
+  const right = Math.min(window.innerWidth, grid.right, rect.right);
+  const top = Math.max(0, grid.top, rect.top);
+  const bottom = Math.min(window.innerHeight, grid.bottom, rect.bottom);
+  return (
+    left < right &&
+    top < bottom &&
+    control.contains(
+      document.elementFromPoint((left + right) / 2, (top + bottom) / 2),
+    )
+  );
+}
+
 function refreshVisibleCalendarCells(
   wrapper,
   today,
@@ -225,6 +241,14 @@ function refreshVisibleCalendarCells(
   const focused = document.activeElement;
   const focusedCard =
     wrapper.contains(focused) && focused.closest(".calendar-lecture");
+  const keepFocusVisible =
+    focusedCard &&
+    !document.hidden &&
+    document.hasFocus() &&
+    focused.matches(":focus-visible") &&
+    (refreshAll ||
+      changedDateKeys.has(focusedCard.parentElement.dataset.calendarDate)) &&
+    isCalendarControlVisible(focused, wrapper);
   const cells = wrapper.querySelectorAll(".calendar-cell[data-calendar-date]");
   const refreshedEventElems = [];
   for (const cell of cells) {
@@ -260,9 +284,20 @@ function refreshVisibleCalendarCells(
     const index = [...focusedCard.querySelectorAll("a, button")].indexOf(
       focused,
     );
-    replacement
-      ?.querySelectorAll("a, button")
-      [index]?.focus({ preventScroll: true });
+    const control = replacement?.querySelectorAll("a, button")[index];
+    control?.focus({ preventScroll: true });
+    if (
+      keepFocusVisible &&
+      control &&
+      document.activeElement === control &&
+      !isCalendarControlVisible(control, wrapper)
+    ) {
+      control.scrollIntoView({
+        block: "nearest",
+        inline: "nearest",
+        behavior: "instant",
+      });
+    }
   }
   if (refreshedEventElems.length === 0) {
     return;
@@ -349,6 +384,9 @@ function createPastButton(wrapper) {
 
   resetBtn.addEventListener("click", () => {
     setCalendarRange(wrapper, new Date(), 0);
+    if (document.activeElement === resetBtn) {
+      pastBtn.focus({ preventScroll: true });
+    }
     resetBtn.hidden = true;
   });
 
