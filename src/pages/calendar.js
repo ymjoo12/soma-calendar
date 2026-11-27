@@ -132,22 +132,28 @@ function createCalendarLectureElement(
   return lectureElement;
 }
 
-function createDayCell(date, today, lectures, renderedDetailIds) {
+function updateDayLabel(cell, date, isToday) {
   const weekday = ["일", "월", "화", "수", "목", "금", "토"][date.getDay()];
   const dayStr = `${date.getMonth() + 1}월 ${date.getDate()}일 (${weekday})`;
-  const isToday = date.toDateString() === today.toDateString();
+  cell.classList.toggle("today-bg", isToday);
+  const label = cell.firstElementChild;
+  label.classList.toggle("today-text", isToday);
+  label.textContent = dayStr + (isToday ? " [오늘]" : "");
+}
+
+function createDayCell(date, today, lectures, renderedDetailIds) {
   const filteredEvents = lectures.filter(
     (ev) => ev.startAt.toDateString() === date.toDateString(),
   );
 
   const cell = document.createElement("div");
-  cell.className = `calendar-cell ${isToday ? "today-bg" : ""}`.trim();
+  cell.className = "calendar-cell";
   cell.dataset.calendarDate = formatDateKey(date);
 
   const dateElement = document.createElement("div");
-  dateElement.className = `calendar-date ${isToday ? "today-text" : ""}`.trim();
-  dateElement.textContent = `${dayStr}${isToday ? " [오늘]" : ""}`;
+  dateElement.className = "calendar-date";
   cell.appendChild(dateElement);
+  updateDayLabel(cell, date, date.toDateString() === today.toDateString());
 
   let latestEndTime = -Infinity;
   filteredEvents.forEach((ev, index) => {
@@ -156,8 +162,8 @@ function createDayCell(date, today, lectures, renderedDetailIds) {
       (index < filteredEvents.length - 1 &&
         filteredEvents[index + 1].startAt < ev.endAt);
     latestEndTime = Math.max(latestEndTime, ev.endAt.getTime());
-    const isAlreadyPassed = ev.startAt < today;
-    const isEnded = ev.endAt < today;
+    const isAlreadyPassed = ev.startAt <= today;
+    const isEnded = ev.endAt <= today;
     const card = createCalendarLectureElement(
       ev,
       isConflict,
@@ -258,15 +264,58 @@ function refreshVisibleCalendarCells(
   if (refreshedEventElems.length === 0) {
     return;
   }
-  updateCalendarElement(refreshedEventElems, wrapper, today).catch((error) => {
+  updateCalendarElement(refreshedEventElems, wrapper).catch((error) => {
     console.error(error);
   });
 }
 
-function createPastButton(wrapper, startDate, today) {
-  let currentStart = new Date(startDate);
-  const initialStart = new Date(startDate);
+function setCalendarRange(wrapper, today, pastDays) {
+  const weekStart = Utils.getCurrentWeekStartDate(today);
+  const first = new Date(weekStart);
+  first.setDate(first.getDate() - pastDays);
+  const afterLast = new Date(weekStart);
+  afterLast.setDate(afterLast.getDate() + 28);
+  const firstKey = formatDateKey(first);
+  const afterLastKey = formatDateKey(afterLast);
+  const todayKey = formatDateKey(today);
+  for (const cell of wrapper.querySelectorAll("[data-calendar-date]")) {
+    const key = cell.dataset.calendarDate;
+    if (key < firstKey || key >= afterLastKey) cell.remove();
+  }
 
+  // Leave overlapping cells in place so focus, detail requests and scroll anchors survive.
+  const added = [];
+  let next = wrapper.querySelector(".past-btn-cell").nextElementSibling;
+  for (
+    const date = new Date(first);
+    date < afterLast;
+    date.setDate(date.getDate() + 1)
+  ) {
+    const key = formatDateKey(date);
+    let cell = next;
+    if (cell?.dataset.calendarDate === key) {
+      next = cell.nextElementSibling;
+      if (cell.classList.contains("today-bg") !== (key === todayKey)) {
+        updateDayLabel(cell, date, key === todayKey);
+      }
+    } else {
+      cell = createDayCell(date, today, lectures);
+      wrapper.insertBefore(cell, next);
+      added.push(...cell.querySelectorAll(".calendar-lecture"));
+    }
+    if (date < weekStart) cell.dataset.pastCell = "true";
+    else delete cell.dataset.pastCell;
+  }
+  wrapper.dataset.today = todayKey;
+  if (wrapper.isConnected && added.length) {
+    // The clock may be reconciling buttons in this same turn.
+    queueMicrotask(() => {
+      updateCalendarElement(added, wrapper).catch(console.error);
+    });
+  }
+}
+
+function createPastButton(wrapper) {
   const cell = document.createElement("div");
   cell.className = "calendar-cell past-btn-cell";
 
@@ -280,30 +329,13 @@ function createPastButton(wrapper, startDate, today) {
   resetBtn.hidden = true;
 
   pastBtn.addEventListener("click", () => {
-    currentStart.setDate(currentStart.getDate() - 14);
-    const insertBefore = cell.nextSibling;
-    const addedEventElems = [];
-    for (let i = 0; i < 14; i++) {
-      const date = new Date(currentStart);
-      date.setDate(currentStart.getDate() + i);
-      const dayCell = createDayCell(date, today, lectures);
-      dayCell.dataset.pastCell = "true";
-      wrapper.insertBefore(dayCell, insertBefore);
-      addedEventElems.push(...dayCell.querySelectorAll(".calendar-lecture"));
-    }
+    const pastDays = wrapper.querySelectorAll("[data-past-cell]").length;
+    setCalendarRange(wrapper, new Date(), pastDays + 14);
     resetBtn.hidden = false;
-    updateCalendarElement(addedEventElems, wrapper, today).catch((error) => {
-      console.error(error);
-    });
   });
 
   resetBtn.addEventListener("click", () => {
-    for (const pastCell of wrapper.querySelectorAll(
-      '.calendar-cell[data-past-cell="true"]',
-    )) {
-      pastCell.remove();
-    }
-    currentStart = new Date(initialStart);
+    setCalendarRange(wrapper, new Date(), 0);
     resetBtn.hidden = true;
   });
 
@@ -311,12 +343,7 @@ function createPastButton(wrapper, startDate, today) {
   return cell;
 }
 
-async function loadRemainingCalendarLectures(
-  calendarLectures,
-  wrapper,
-  today,
-  startDate,
-) {
+async function loadRemainingCalendarLectures(calendarLectures, wrapper) {
   while (calendarLectures.loadPastLectures) {
     const generation = Cache.historyGeneration;
     const isCurrent = await calendarLectures.loadPastLectures(
@@ -327,7 +354,7 @@ async function loadRemainingCalendarLectures(
           );
         }
         lectures = Service.updateLectures(lectures, pageLectures);
-        refreshVisibleCalendarCells(wrapper, today, [
+        refreshVisibleCalendarCells(wrapper, new Date(), [
           ...previousLectures,
           ...pageLectures,
         ]);
@@ -336,19 +363,17 @@ async function loadRemainingCalendarLectures(
     if (isCurrent) return;
 
     calendarLectures = await Service.getCalendarLectures(
-      startDate,
+      Utils.getCurrentWeekStartDate(),
       generation !== Cache.historyGeneration,
     );
     lectures = calendarLectures.lectures;
     unverifiedIds = calendarLectures.unverifiedIds;
-    refreshVisibleCalendarCells(wrapper, today);
+    refreshVisibleCalendarCells(wrapper, new Date());
   }
 }
 
 async function generateCalendarElement() {
-  const today = new Date();
-  const startDate = new Date(today);
-  startDate.setDate(today.getDate() - today.getDay());
+  const startDate = Utils.getCurrentWeekStartDate();
   const wrapper = document.createElement("div");
   wrapper.id = "history-calendar";
 
@@ -356,20 +381,9 @@ async function generateCalendarElement() {
   lectures = calendarLectures.lectures;
   unverifiedIds = calendarLectures.unverifiedIds;
 
-  wrapper.appendChild(createPastButton(wrapper, startDate, today));
-
-  for (let i = 0; i < 28; i++) {
-    const date = new Date(startDate);
-    date.setDate(startDate.getDate() + i);
-    wrapper.appendChild(createDayCell(date, today, lectures));
-  }
-
-  loadRemainingCalendarLectures(
-    calendarLectures,
-    wrapper,
-    today,
-    startDate,
-  ).catch((error) => console.error(error));
+  wrapper.appendChild(createPastButton(wrapper));
+  setCalendarRange(wrapper, new Date(), 0);
+  loadRemainingCalendarLectures(calendarLectures, wrapper).catch(console.error);
 
   return wrapper;
 }
@@ -557,6 +571,16 @@ function refreshCancellationButtons(retryFailed = false, clickedButton) {
   if (document.hidden) return;
 
   const now = Date.now();
+  const today = new Date(now);
+  const wrapper = document.getElementById("history-calendar");
+  let next = Infinity;
+  if (wrapper?.dataset.today) {
+    if (wrapper.dataset.today !== formatDateKey(today)) {
+      const pastDays = wrapper.querySelectorAll("[data-past-cell]").length;
+      setCalendarRange(wrapper, today, pastDays);
+    }
+    next = today.setHours(24, 0, 0, 0);
+  }
   const generation = Cache.historyGeneration;
   const pending = new Map();
   const byUrl = new Map(lectures.map((lecture) => [lecture.url, lecture]));
@@ -566,11 +590,27 @@ function refreshCancellationButtons(retryFailed = false, clickedButton) {
     }
   }
   let selectedGrant;
-  let next = Infinity;
   for (const button of document.querySelectorAll(
     ".calendar-lecture .cancel-btn",
   )) {
     const lecture = byUrl.get(button.dataset.id);
+    const card = button.closest(".calendar-lecture");
+    const end = Number(card.dataset.endAt);
+    if (now < end) next = Math.min(next, end);
+    const ended = now >= end;
+    if (card.classList.contains("ended") !== ended) {
+      card.classList.toggle("ended", ended);
+      const people = card.querySelector('[data-role="people"]');
+      if (ended && people?.style.color === "red") people.style.color = "";
+      if (
+        !ended &&
+        lecture &&
+        !lecture.isApproved &&
+        people?.innerText === getCalendarPeopleText(lecture)
+      ) {
+        people.style.color = "red";
+      }
+    }
     const id = lecture?.lectureId;
     const cardStart = lecture?.startAt?.getTime();
     const source = Service.getCancellationPage(id);
@@ -767,13 +807,7 @@ function getLectureByUrl(url) {
   return lectures.find((lec) => lec.url === url);
 }
 
-function updateCalendarLectureRender(
-  wrapper,
-  today,
-  ev,
-  generation,
-  eventDetails,
-) {
+function updateCalendarLectureRender(wrapper, ev, generation, eventDetails) {
   const id = ev.dataset.lectureId;
   if (
     generation !== Cache.historyGeneration ||
@@ -799,14 +833,13 @@ function updateCalendarLectureRender(
   ) {
     renderCalendarLecture(currentCard, lecture);
   } else {
-    refreshVisibleCalendarCells(wrapper, today, [lecture], [lecture]);
+    refreshVisibleCalendarCells(wrapper, new Date(), [lecture], [lecture]);
   }
   return lecture;
 }
 
 async function getCalendarLectureForAction(ev, lecture) {
   const wrapper = document.getElementById("history-calendar");
-  const today = new Date();
   const generation = Cache.historyGeneration;
   let eventDetails;
   try {
@@ -823,7 +856,6 @@ async function getCalendarLectureForAction(ev, lecture) {
 
   const rendered = updateCalendarLectureRender(
     wrapper,
-    today,
     ev,
     generation,
     eventDetails,
@@ -838,7 +870,7 @@ async function getCalendarLectureForAction(ev, lecture) {
   return latest;
 }
 
-async function updateCalendarLectureElement(ev, wrapper, today) {
+async function updateCalendarLectureElement(ev, wrapper) {
   if (!ev.isConnected) {
     return;
   }
@@ -868,7 +900,7 @@ async function updateCalendarLectureElement(ev, wrapper, today) {
         requiredFields: CALENDAR_CURRENT_DETAIL_FIELDS,
       });
     }
-    updateCalendarLectureRender(wrapper, today, ev, generation, eventDetails);
+    updateCalendarLectureRender(wrapper, ev, generation, eventDetails);
   } catch (error) {
     if (generation === Cache.historyGeneration) {
       if (
@@ -891,14 +923,13 @@ async function updateCalendarLectureElement(ev, wrapper, today) {
     ev.isConnected &&
     ev.querySelector('[data-role="location"]')?.innerText === "장소 로딩중.."
   ) {
-    await updateCalendarLectureElement(ev, wrapper, today);
+    await updateCalendarLectureElement(ev, wrapper);
   }
 }
 
 async function updateCalendarElement(
   eventElems,
   wrapper = document.getElementById("history-calendar"),
-  today = new Date(),
 ) {
   const allEventElems = Array.from(
     eventElems ?? document.querySelectorAll("div.calendar-lecture"),
@@ -918,7 +949,7 @@ async function updateCalendarElement(
   await Utils.mapWithConcurrency(
     targetEventElems,
     LECTURE_DETAIL_CONCURRENCY_LIMIT,
-    (ev) => updateCalendarLectureElement(ev, wrapper, today),
+    (ev) => updateCalendarLectureElement(ev, wrapper),
   );
 }
 
