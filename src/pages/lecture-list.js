@@ -11,6 +11,7 @@ function loadSavedOnlineFilter() {
 
 let currentOnlineFilter = loadSavedOnlineFilter();
 const rowIsOnlineMap = new Map();
+let rowOnlineStatusGeneration = Cache.historyGeneration;
 let rowOnlineStatusPromise = null;
 let onlineFilterUpdateQueued = false;
 let lectureListItems = null;
@@ -20,7 +21,19 @@ function getLectureListItems() {
   return lectureListItems;
 }
 
+function syncRowOnlineStatusGeneration() {
+  const generation = Cache.historyGeneration;
+  if (rowOnlineStatusGeneration !== generation) {
+    rowOnlineStatusGeneration = generation;
+    rowOnlineStatusPromise = null;
+    for (const row of rowIsOnlineMap.keys()) rowIsOnlineMap.set(row, null);
+    queueApplyOnlineFilter();
+  }
+  return generation;
+}
+
 async function loadAllRowOnlineStatuses() {
+  const generation = syncRowOnlineStatusGeneration();
   if (rowOnlineStatusPromise) {
     return rowOnlineStatusPromise;
   }
@@ -32,19 +45,26 @@ async function loadAllRowOnlineStatuses() {
     pendingItems,
     LECTURE_DETAIL_CONCURRENCY_LIMIT,
     async ({ row, lecture }) => {
+      if (generation !== Cache.historyGeneration) return;
+      rowIsOnlineMap.set(row, null);
+      let isOnline = null;
       try {
         const detail = await Service.getLectureDetail(lecture.url, {
           requiredFields: ["isOnline"],
         });
-        rowIsOnlineMap.set(row, detail?.isOnline ?? null);
+        isOnline = detail?.isOnline ?? null;
       } catch (error) {
-        console.error(error);
-        rowIsOnlineMap.set(row, null);
+        if (generation === Cache.historyGeneration) console.error(error);
       }
-      queueApplyOnlineFilter();
+      if (generation === Cache.historyGeneration) {
+        rowIsOnlineMap.set(row, isOnline);
+        queueApplyOnlineFilter();
+      }
     },
   ).finally(() => {
-    rowOnlineStatusPromise = null;
+    if (generation === syncRowOnlineStatusGeneration()) {
+      rowOnlineStatusPromise = null;
+    }
   });
   return rowOnlineStatusPromise;
 }
@@ -210,7 +230,9 @@ function renderCalendarPopupDetail(container, detail) {
 async function enrichCalendarPopup(item, token) {
   const { popup, detailLink } = getCalendarPopupElements(item);
 
-  if (token && item.dataset.somaPopupEnrichmentToken !== token) {
+  const isCurrentPopup = () =>
+    !token || item.dataset.somaPopupEnrichmentToken === token;
+  if (!isCurrentPopup()) {
     return;
   }
 
@@ -231,6 +253,7 @@ async function enrichCalendarPopup(item, token) {
   container.dataset.loadingToken = token;
   renderCalendarPopupDetail(container, { loading: true });
 
+  const generation = syncRowOnlineStatusGeneration();
   try {
     const detail = await Service.getLectureDetail(detailLink.href, {
       requiredFields: [
@@ -241,19 +264,33 @@ async function enrichCalendarPopup(item, token) {
         "appliedCount",
       ],
     });
-    if (token && item.dataset.somaPopupEnrichmentToken !== token) {
-      return;
+    if (generation !== Cache.historyGeneration) return;
+    // A closed popup can still have an up-to-date status for its list row.
+    for (const { row, lecture } of lectureListItems ?? []) {
+      if (lecture.lectureId === detail.lectureId && rowIsOnlineMap.has(row)) {
+        rowIsOnlineMap.set(row, detail.isOnline ?? null);
+        queueApplyOnlineFilter();
+      }
     }
+    if (!isCurrentPopup()) return;
     container.dataset.state = "loaded";
     container.dataset.loadedToken = token;
     renderCalendarPopupDetail(container, detail);
   } catch (error) {
+    if (generation !== Cache.historyGeneration || !isCurrentPopup()) return;
     container.dataset.state = "error";
     renderCalendarPopupDetail(container, { error: true });
     console.error(error);
   } finally {
     if (container.dataset.loadingToken === token) {
       delete container.dataset.loadingToken;
+    }
+    if (
+      generation !== syncRowOnlineStatusGeneration() &&
+      isCurrentPopup() &&
+      isCalendarPopupVisible(popup)
+    ) {
+      scheduleCalendarPopupEnrichment(item);
     }
   }
 }
