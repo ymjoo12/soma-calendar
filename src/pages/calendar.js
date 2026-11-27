@@ -36,6 +36,7 @@ function createCalendarButton(
   disabled = false,
 ) {
   const button = document.createElement("button");
+  button.type = "button";
   button.className = extraClass ? `${className} ${extraClass}` : className;
   button.dataset.id = url;
   button.style.flex = "1";
@@ -321,10 +322,12 @@ function createPastButton(wrapper) {
   cell.className = "calendar-cell past-btn-cell";
 
   const pastBtn = document.createElement("button");
+  pastBtn.type = "button";
   pastBtn.className = "past-btn";
   pastBtn.textContent = "⬆ 이전 2주 보기";
 
   const resetBtn = document.createElement("button");
+  resetBtn.type = "button";
   resetBtn.className = "past-btn";
   resetBtn.textContent = "↩ 이번주부터 보기";
   resetBtn.hidden = true;
