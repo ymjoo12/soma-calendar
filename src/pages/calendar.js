@@ -189,6 +189,7 @@ function formatDateKey(date) {
 function hasRenderedLocation(ev) {
   const location = ev.querySelector('[data-role="location"]')?.innerText;
   return (
+    !ev.dataset.detailLoadFailed &&
     location &&
     location !== "장소 로딩중.." &&
     location !== "-" &&
@@ -431,37 +432,44 @@ function setLectureText(ev, role, value) {
   }
 }
 
-function getCalendarPeopleText(lecture) {
+function getCalendarPeopleText(lecture, showApproval = true) {
   const hasPeopleCounts =
     /^\d+$/.test(lecture.appliedCount) && /^\d+$/.test(lecture.totalCount);
   const peopleText = hasPeopleCounts
     ? `${lecture.appliedCount}명 / ${lecture.totalCount}명`
     : lecture.capacityText;
   if (peopleText === undefined) return "인원 확인 불가";
+  if (!showApproval) return peopleText ?? "-";
   return (
     (peopleText ?? "-") + (lecture.isApproved ? " [개설 확정]" : " [미승인]")
   );
 }
 
-function renderCalendarLecture(ev, lecture) {
-  if (lecture.location === undefined) {
-    lecture = { ...lecture, location: LOCATION_UNAVAILABLE };
+function calendarLocationText(location) {
+  return location === undefined ? LOCATION_UNAVAILABLE : location || "-";
+}
+
+function renderCalendarPeople(ev, lecture, showApproval = true) {
+  const peopleElem = ev.querySelector('[data-role="people"]');
+  if (peopleElem) {
+    peopleElem.innerText = getCalendarPeopleText(lecture, showApproval);
+    // Keep past lectures visually muted even when approval is missing.
+    peopleElem.style.color =
+      showApproval && !lecture.isApproved && !ev.classList.contains("ended")
+        ? "red"
+        : "";
   }
+}
+
+function renderCalendarLecture(ev, lecture) {
+  delete ev.dataset.detailLoadFailed;
   ev.title = lecture.title;
   setLectureText(ev, "title", lecture.title);
   setLectureText(ev, "author", lecture.author);
   setLectureText(ev, "time", lecture.timeRangeStr);
-  setLectureText(ev, "location", lecture.location || "-");
+  setLectureText(ev, "location", calendarLocationText(lecture.location));
 
-  const peopleElem = ev.querySelector('[data-role="people"]');
-  if (peopleElem) {
-    peopleElem.innerText = getCalendarPeopleText(lecture);
-    peopleElem.style.color = "";
-    if (!lecture.isApproved && !ev.classList.contains("ended")) {
-      // Keep past lectures visually muted even when approval is missing.
-      peopleElem.style.color = "red";
-    }
-  }
+  renderCalendarPeople(ev, lecture);
 }
 
 // Actions
@@ -807,7 +815,13 @@ function getLectureByUrl(url) {
   return lectures.find((lec) => lec.url === url);
 }
 
-function updateCalendarLectureRender(wrapper, ev, generation, eventDetails) {
+function updateCalendarLectureRender(
+  wrapper,
+  ev,
+  generation,
+  eventDetails,
+  fromAction = false,
+) {
   const id = ev.dataset.lectureId;
   if (
     generation !== Cache.historyGeneration ||
@@ -820,11 +834,15 @@ function updateCalendarLectureRender(wrapper, ev, generation, eventDetails) {
   const lecture = lectures.find(
     (item) => Cache.getLectureRecordId(item) === id,
   );
-  const currentCard = ev.isConnected
-    ? ev
-    : wrapper.querySelector(
-        `.calendar-lecture[data-lecture-id="${CSS.escape(id)}"]`,
-      );
+  const findCard = () =>
+    ev.isConnected
+      ? ev
+      : wrapper?.querySelector(
+          `.calendar-lecture[data-lecture-id="${CSS.escape(id)}"]`,
+        );
+  const currentCard = findCard();
+  const keepPartial =
+    fromAction && (currentCard ?? ev).dataset.detailLoadFailed;
   if (
     currentCard &&
     (!wrapper?.isConnected ||
@@ -835,6 +853,8 @@ function updateCalendarLectureRender(wrapper, ev, generation, eventDetails) {
   } else {
     refreshVisibleCalendarCells(wrapper, new Date(), [lecture], [lecture]);
   }
+  // An export requires fewer fields than a complete card.
+  if (keepPartial) renderCachedCalendarFields(findCard(), true);
   return lecture;
 }
 
@@ -859,6 +879,7 @@ async function getCalendarLectureForAction(ev, lecture) {
     ev,
     generation,
     eventDetails,
+    true,
   );
   if (rendered) return rendered;
 
@@ -868,6 +889,39 @@ async function getCalendarLectureForAction(ev, lecture) {
     [eventDetails],
   );
   return latest;
+}
+
+function renderCachedCalendarFields(ev, afterAction = false) {
+  if (!ev?.isConnected) return;
+  const id = ev.dataset.lectureId;
+  if (!lectures.some((item) => Cache.getLectureRecordId(item) === id)) return;
+  const location = ev.querySelector('[data-role="location"]');
+  const needsLocation = afterAction || location?.innerText === "장소 로딩중..";
+  const needsPeople =
+    afterAction ||
+    ev.querySelector('[data-role="people"]')?.innerText === "인원수 로딩중..";
+  if (!needsLocation && !needsPeople) return;
+  const displayFields = [
+    "location",
+    "capacityText",
+    "appliedCount",
+    "totalCount",
+    "isApproved",
+  ];
+  const fields = Cache.getFreshLectureFieldValues(id, displayFields);
+  if (
+    afterAction &&
+    displayFields.every((field) => fields[field] !== undefined)
+  ) {
+    delete ev.dataset.detailLoadFailed;
+  } else {
+    ev.dataset.detailLoadFailed = "true";
+  }
+  if (needsLocation) {
+    location.innerText = calendarLocationText(fields.location);
+  }
+  if (needsPeople)
+    renderCalendarPeople(ev, fields, fields.isApproved !== undefined);
 }
 
 async function updateCalendarLectureElement(ev, wrapper) {
@@ -903,18 +957,7 @@ async function updateCalendarLectureElement(ev, wrapper) {
     updateCalendarLectureRender(wrapper, ev, generation, eventDetails);
   } catch (error) {
     if (generation === Cache.historyGeneration) {
-      if (
-        ev.querySelector('[data-role="location"]')?.innerText ===
-        "장소 로딩중.."
-      ) {
-        setLectureText(ev, "location", LOCATION_UNAVAILABLE);
-      }
-      if (
-        ev.querySelector('[data-role="people"]')?.innerText ===
-        "인원수 로딩중.."
-      ) {
-        setLectureText(ev, "people", "인원 확인 불가");
-      }
+      renderCachedCalendarFields(ev);
       console.error(error);
     }
   }

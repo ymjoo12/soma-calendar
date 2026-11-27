@@ -373,6 +373,18 @@ const Cache = (() => {
     );
   }
 
+  function getFreshLectureFieldValues(id, fields) {
+    const record = readLectureRecord(id);
+    const values = {};
+    if (record) {
+      for (const field of fields) {
+        if (hasFreshLectureFields(record, [field]))
+          values[field] = record.fields[field];
+      }
+    }
+    return values;
+  }
+
   function getCachedPastLectureFields(url, requiredFields) {
     const record = readLectureRecord(getLectureDetailCacheKey(url));
     if (
@@ -898,6 +910,7 @@ const Cache = (() => {
     getCachedHistoryLectureEntries,
     getCachedHistoryLectureIds,
     getCachedLectureFields,
+    getFreshLectureFieldValues,
     getCachedPastLectureFields,
     getCachedPastLectures,
     getLectureDetailCacheKey,
