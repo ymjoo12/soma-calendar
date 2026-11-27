@@ -11,6 +11,7 @@ function loadSavedOnlineFilter() {
 
 let currentOnlineFilter = loadSavedOnlineFilter();
 const rowIsOnlineMap = new Map();
+const failedOnlineRows = new Set();
 let rowOnlineStatusGeneration = Cache.historyGeneration;
 let rowOnlineStatusPromise = null;
 let onlineFilterUpdateQueued = false;
@@ -26,40 +27,58 @@ function syncRowOnlineStatusGeneration() {
   if (rowOnlineStatusGeneration !== generation) {
     rowOnlineStatusGeneration = generation;
     rowOnlineStatusPromise = null;
+    failedOnlineRows.clear();
     for (const row of rowIsOnlineMap.keys()) rowIsOnlineMap.set(row, null);
     queueApplyOnlineFilter();
   }
   return generation;
 }
 
-async function loadAllRowOnlineStatuses() {
+async function loadAllRowOnlineStatuses(reconnected = false) {
   const generation = syncRowOnlineStatusGeneration();
-  if (rowOnlineStatusPromise) {
-    return rowOnlineStatusPromise;
+  const running = rowOnlineStatusPromise;
+  while (rowOnlineStatusPromise) {
+    await rowOnlineStatusPromise;
+    if (
+      generation !== Cache.historyGeneration ||
+      currentOnlineFilter === "all" ||
+      document.hidden
+    ) {
+      return;
+    }
   }
 
-  const pendingItems = getLectureListItems().filter(
-    ({ row }) => typeof rowIsOnlineMap.get(row) !== "boolean",
-  );
+  const pendingItems = getLectureListItems().filter(({ row, lecture }) => {
+    if (typeof rowIsOnlineMap.get(row) !== "boolean") {
+      // Only a failed request needs a retry when the connection returns.
+      return reconnected ? failedOnlineRows.has(row) : !running;
+    }
+    const cached = Cache.getCachedLectureFields(lecture.url, ["isOnline"]);
+    if (cached) rowIsOnlineMap.set(row, cached.isOnline);
+    return !cached;
+  });
+  if (!pendingItems.length) return;
+
   rowOnlineStatusPromise = Utils.mapWithConcurrency(
     pendingItems,
     LECTURE_DETAIL_CONCURRENCY_LIMIT,
     async ({ row, lecture }) => {
       if (generation !== Cache.historyGeneration) return;
-      rowIsOnlineMap.set(row, null);
-      let isOnline = null;
+      if (!rowIsOnlineMap.has(row)) rowIsOnlineMap.set(row, null);
       try {
         const detail = await Service.getLectureDetail(lecture.url, {
           requiredFields: ["isOnline"],
         });
-        isOnline = detail?.isOnline ?? null;
+        if (generation !== Cache.historyGeneration) return;
+        rowIsOnlineMap.set(row, detail?.isOnline ?? null);
+        failedOnlineRows.delete(row);
       } catch (error) {
-        if (generation === Cache.historyGeneration) console.error(error);
+        if (generation !== Cache.historyGeneration) return;
+        rowIsOnlineMap.set(row, null);
+        failedOnlineRows.add(row);
+        console.error(error);
       }
-      if (generation === Cache.historyGeneration) {
-        rowIsOnlineMap.set(row, isOnline);
-        queueApplyOnlineFilter();
-      }
+      queueApplyOnlineFilter();
     },
   ).finally(() => {
     if (generation === syncRowOnlineStatusGeneration()) {
@@ -101,27 +120,45 @@ function insertOnlineFilterUI() {
   const onlineTabsList = document.createElement("ul");
   onlineTabsList.className = "tabs-sort soma-online-tabs";
   let appliedGeneration;
+  let wasHidden = document.hidden;
+  let wasOffline = navigator.onLine === false;
 
-  function applySelection() {
+  function applySelection(reconnected = false) {
     appliedGeneration = Cache.historyGeneration;
     if (currentOnlineFilter !== "all") {
-      loadAllRowOnlineStatuses().catch((error) => console.error(error));
+      loadAllRowOnlineStatuses(reconnected).catch((error) =>
+        console.error(error),
+      );
     }
     applyOnlineFilter();
   }
 
-  function refreshClearedFilter() {
+  function refreshActiveFilter(event) {
+    if (event.type === "soma-lecture-cache-cleared") {
+      syncRowOnlineStatusGeneration();
+    }
+    const resumed =
+      event.type === "visibilitychange" && wasHidden && !document.hidden;
+    if (event.type === "visibilitychange") wasHidden = document.hidden;
+    if (event.type === "offline" && !navigator.onLine) wasOffline = true;
+    const reconnected =
+      event.type === "online" && wasOffline && navigator.onLine;
+    if (reconnected) wasOffline = false;
     if (
-      appliedGeneration !== Cache.historyGeneration &&
+      (appliedGeneration !== Cache.historyGeneration ||
+        resumed ||
+        reconnected) &&
       currentOnlineFilter !== "all" &&
       !document.hidden
     ) {
-      applySelection();
+      applySelection(reconnected);
     }
   }
 
-  document.addEventListener("soma-lecture-cache-cleared", refreshClearedFilter);
-  document.addEventListener("visibilitychange", refreshClearedFilter);
+  document.addEventListener("soma-lecture-cache-cleared", refreshActiveFilter);
+  document.addEventListener("visibilitychange", refreshActiveFilter);
+  window.addEventListener("offline", refreshActiveFilter);
+  window.addEventListener("online", refreshActiveFilter);
 
   for (const { text, value } of [
     { text: "전체", value: "all" },
@@ -284,6 +321,7 @@ async function enrichCalendarPopup(item, token) {
     for (const { row, lecture } of lectureListItems ?? []) {
       if (lecture.lectureId === detail.lectureId && rowIsOnlineMap.has(row)) {
         rowIsOnlineMap.set(row, detail.isOnline ?? null);
+        failedOnlineRows.delete(row);
         queueApplyOnlineFilter();
       }
     }
