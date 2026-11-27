@@ -4,6 +4,7 @@ const LOCATION_UNAVAILABLE = "장소 확인 불가";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CANCEL_RETRY_DELAY_MS = 30_000;
 const cancellationChecks = new Map();
+const pendingExports = new Set();
 let cancellationTimer;
 const CALENDAR_BASE_DETAIL_FIELDS = [
   "dateStr",
@@ -696,35 +697,51 @@ function refreshCancellationButtons(retryFailed = false, clickedButton) {
   return selectedGrant;
 }
 
+function attachExportAction(card, selector, exportLecture) {
+  const button = card.querySelector(selector);
+  const id = card.dataset.lectureId;
+  const key = selector + ":" + id;
+  button.disabled = pendingExports.has(key);
+  button.addEventListener("click", async () => {
+    if (!card.isConnected || pendingExports.has(key)) return;
+    pendingExports.add(key);
+    button.disabled = true;
+    try {
+      await exportLecture();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      pendingExports.delete(key);
+      button.disabled = false;
+      if (!card.isConnected) {
+        const replacement = document.querySelector(
+          `#history-calendar .calendar-lecture[data-lecture-id="${CSS.escape(id)}"] ${selector}`,
+        );
+        if (replacement) replacement.disabled = false;
+      }
+    }
+  });
+}
+
 function attachCalendarLectureActions(ev, lecture) {
   if (ev.dataset.actionsAttached === "true") {
     return;
   }
 
-  const exportBtn = ev.querySelector(".export-btn");
-  exportBtn.addEventListener("click", async () => {
-    exportBtn.disabled = true;
-    try {
-      const latestLecture = await getCalendarLectureForAction(ev, lecture);
-      const icsContent = generateICS(latestLecture);
-      const blob = new Blob([icsContent], { type: "text/calendar" });
-      const downloadLink = document.createElement("a");
-      downloadLink.href = URL.createObjectURL(blob);
-      downloadLink.download = `${latestLecture.title.replace(/\s+/g, "_")}.ics`;
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      document.body.removeChild(downloadLink);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      exportBtn.disabled = false;
-    }
+  attachExportAction(ev, ".export-btn", async () => {
+    const latestLecture = await getCalendarLectureForAction(ev, lecture);
+    const icsContent = generateICS(latestLecture);
+    const blob = new Blob([icsContent], { type: "text/calendar" });
+    const downloadLink = document.createElement("a");
+    downloadLink.href = URL.createObjectURL(blob);
+    downloadLink.download = `${latestLecture.title.replace(/\s+/g, "_")}.ics`;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
   });
 
-  const gcalBtn = ev.querySelector(".gcal-btn");
-  gcalBtn.addEventListener("click", async () => {
+  attachExportAction(ev, ".gcal-btn", async () => {
     const calendarWindow = window.open("", "_blank");
-    gcalBtn.disabled = true;
     try {
       const latestLecture = await getCalendarLectureForAction(ev, lecture);
       const googleCalendarURL = generateGoogleCalendarURL(latestLecture);
@@ -737,9 +754,7 @@ function attachCalendarLectureActions(ev, lecture) {
       if (calendarWindow) {
         calendarWindow.close();
       }
-      console.error(error);
-    } finally {
-      gcalBtn.disabled = false;
+      throw error;
     }
   });
 
