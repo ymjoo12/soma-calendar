@@ -859,8 +859,14 @@ function updateCalendarLectureRender(
           `.calendar-lecture[data-lecture-id="${CSS.escape(id)}"]`,
         );
   const currentCard = findCard();
+  const previousCard = currentCard ?? ev;
   const keepPartial =
-    fromAction && (currentCard ?? ev).dataset.detailLoadFailed;
+    previousCard.dataset.detailLoadFailed ||
+    (fromAction &&
+      (previousCard.querySelector('[data-role="location"]')?.innerText ===
+        "장소 로딩중.." ||
+        previousCard.querySelector('[data-role="people"]')?.innerText ===
+          "인원수 로딩중.."));
   if (
     currentCard &&
     (!wrapper?.isConnected ||
@@ -871,7 +877,7 @@ function updateCalendarLectureRender(
   } else {
     refreshVisibleCalendarCells(wrapper, new Date(), [lecture], [lecture]);
   }
-  // An export requires fewer fields than a complete card.
+  // An export can complete before the display fields have finished loading.
   if (keepPartial) renderCachedCalendarFields(findCard(), true);
   return lecture;
 }
@@ -909,14 +915,14 @@ async function getCalendarLectureForAction(ev, lecture) {
   return latest;
 }
 
-function renderCachedCalendarFields(ev, afterAction = false) {
+function renderCachedCalendarFields(ev, afterSuccess = false) {
   if (!ev?.isConnected) return;
   const id = ev.dataset.lectureId;
   if (!lectures.some((item) => Cache.getLectureRecordId(item) === id)) return;
   const location = ev.querySelector('[data-role="location"]');
-  const needsLocation = afterAction || location?.innerText === "장소 로딩중..";
+  const needsLocation = afterSuccess || location?.innerText === "장소 로딩중..";
   const needsPeople =
-    afterAction ||
+    afterSuccess ||
     ev.querySelector('[data-role="people"]')?.innerText === "인원수 로딩중..";
   if (!needsLocation && !needsPeople) return;
   const displayFields = [
@@ -928,7 +934,7 @@ function renderCachedCalendarFields(ev, afterAction = false) {
   ];
   const fields = Cache.getFreshLectureFieldValues(id, displayFields);
   if (
-    afterAction &&
+    afterSuccess &&
     displayFields.every((field) => fields[field] !== undefined)
   ) {
     delete ev.dataset.detailLoadFailed;
