@@ -62,24 +62,34 @@ const Service = (() => {
     );
   }
 
-  async function readCurrentHistory(readPages, startDate) {
+  function historyOrderChanged(error) {
+    return error?.code === "HISTORY_ORDER_CHANGED";
+  }
+
+  async function readCurrentHistory(readPages, startDate, retryOrder = true) {
     const path = Utils.getLectureHistoryPath();
+    let retriedGeneration = retryOrder ? null : Cache.historyGeneration;
     // A foreground reader still needs a result if the popup clears its scan.
     for (;;) {
       const generation = Cache.historyGeneration;
       const isCurrent = () => generation === Cache.historyGeneration;
+      const canRetryOrder = retriedGeneration !== generation;
+      const cache = canRetryOrder ? "default" : "no-store";
       try {
-        const firstPage = await Client.fetchLectureHistoryHead(path);
+        const firstPage = await Client.fetchLectureHistoryHead(path, 1, cache);
         if (!isCurrent()) continue;
         Cache.writeHistoryPageCache(path, PAGE_ONE, firstPage.lectures, 0);
         const result = await readPages(
           path,
-          { ...firstPage, isCurrent },
+          { ...firstPage, isCurrent, canRetryOrder, cache },
           startDate,
         );
         if (isCurrent()) return result;
       } catch (error) {
-        if (isCurrent()) throw error;
+        if (isCurrent()) {
+          if (!canRetryOrder || !historyOrderChanged(error)) throw error;
+          retriedGeneration = generation;
+        }
       }
     }
   }
@@ -98,6 +108,8 @@ const Service = (() => {
       page,
       firstPage.total,
       firstPage.hasExpectedRowNumbers,
+      firstPage,
+      firstPage.cache,
     );
     if (firstPage.isCurrent()) {
       Cache.writeHistoryPageCache(path, page, lectures, previousLectureCount);
@@ -306,17 +318,21 @@ const Service = (() => {
             cachePastLecturePages(
               path,
               firstPastPage + 1,
-              firstPage,
+              { ...firstPage },
               fetchedLectures.length,
               startDate,
               onPage,
               true,
               missingHistoryIds,
-            )
-              .catch((error) => {
-                if (firstPage.isCurrent()) throw error;
-              })
-              .then(firstPage.isCurrent),
+            ).then(firstPage.isCurrent, (error) => {
+              if (
+                !firstPage.isCurrent() ||
+                (firstPage.canRetryOrder && historyOrderChanged(error))
+              ) {
+                return false;
+              }
+              throw error;
+            }),
     };
   }
 
@@ -372,7 +388,8 @@ const Service = (() => {
         if (
           !hadCompleteCache ||
           missingHistoryIds.size > 0 ||
-          !firstPage.isCurrent()
+          !firstPage.isCurrent() ||
+          historyOrderChanged(error)
         ) {
           throw error;
         }
@@ -390,8 +407,8 @@ const Service = (() => {
 
   return {
     getAllLectures: () => readCurrentHistory(getAllLectures),
-    getCalendarLectures: (startDate) =>
-      readCurrentHistory(getCalendarLectures, startDate),
+    getCalendarLectures: (startDate, retryOrder) =>
+      readCurrentHistory(getCalendarLectures, startDate, retryOrder),
     getLectureDetail,
     getLectureFromDetailDocument,
     getLectureListItemsFromDocument,

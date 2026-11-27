@@ -294,6 +294,7 @@ async function loadRemainingCalendarLectures(
   startDate,
 ) {
   while (calendarLectures.loadPastLectures) {
+    const generation = Cache.historyGeneration;
     const isCurrent = await calendarLectures.loadPastLectures(
       (pageLectures, previousLectures = [], removedIds) => {
         if (removedIds?.size) {
@@ -310,7 +311,10 @@ async function loadRemainingCalendarLectures(
     );
     if (isCurrent) return;
 
-    calendarLectures = await Service.getCalendarLectures(startDate);
+    calendarLectures = await Service.getCalendarLectures(
+      startDate,
+      generation !== Cache.historyGeneration,
+    );
     lectures = calendarLectures.lectures;
     unverifiedIds = calendarLectures.unverifiedIds;
     refreshVisibleCalendarCells(wrapper, today);

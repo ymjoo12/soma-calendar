@@ -47,22 +47,25 @@ const Client = (() => {
   }
 
   // History pages
-  function parseLectureHistoryRow(row) {
+  function parseLectureHistoryRow(row, rowKeys) {
     const tds = row.querySelectorAll("td");
     if (tds.length < 8) {
       throw new Error("Incomplete lecture history row");
     }
 
     const applied = tds[6].innerText.trim();
-    if (applied !== "접수완료") {
-      return null;
-    }
-
-    const url = Utils.setPageIndexToOne(tds[2].querySelector("a")?.href);
+    const href = tds[2].querySelector("a")?.href;
+    const urlId = href && Utils.getLectureId(href);
+    // Match possible moves independently of status, but compare both on reread.
+    rowKeys.push({
+      key: urlId ? JSON.stringify([urlId, tds[5].innerText.trim()]) : null,
+      applied,
+    });
     // Deleted lectures can still have a history row without a detail link.
-    if (!url) {
+    if (applied !== "접수완료" || !href) {
       return null;
     }
+    const url = Utils.setPageIndexToOne(href);
     const title = tds[2].innerText.trim();
     const author = tds[3].innerText.trim();
     if (!title || !author) {
@@ -85,8 +88,7 @@ const Client = (() => {
     const cancelMatch = cancelHref?.match(
       /delDate\('([^']+)'\s*,\s*'([^']+)'\s*,\s*'([^']+)'\)/,
     );
-    const params = new URL(url).searchParams;
-    const lectureId = params.get("qustnrSn") || cancelMatch?.[2];
+    const lectureId = urlId || cancelMatch?.[2];
     const canCancel = cancelMatch && cancelMatch[2] === lectureId;
 
     return {
@@ -129,6 +131,7 @@ const Client = (() => {
         total,
         totalPages: 0,
         lectures: [],
+        rowKeys: [],
         hasExpectedRowNumbers: false,
       };
     }
@@ -143,8 +146,11 @@ const Client = (() => {
         row.querySelectorAll("td")[0]?.innerText.trim() ===
         String(firstRowNumber - index),
     );
+    const rowKeys = [];
     const lectures = Utils.normalizeLectureDates(
-      [...rows].map(parseLectureHistoryRow).filter(Boolean),
+      [...rows]
+        .map((row) => parseLectureHistoryRow(row, rowKeys))
+        .filter(Boolean),
     );
     if (
       lectures.some(
@@ -159,6 +165,7 @@ const Client = (() => {
       total,
       totalPages: Math.ceil(total / LECTURE_HISTORY_PAGE_SIZE),
       lectures,
+      rowKeys,
       hasExpectedRowNumbers,
     };
   }
@@ -237,28 +244,65 @@ const Client = (() => {
   }
 
   // Network requests
-  async function fetchDocument(url) {
-    const res = await fetch(url, { credentials: "include" });
+  async function fetchDocument(url, cache = "default") {
+    const res = await fetch(url, { credentials: "include", cache });
     if (!res.ok) {
       throw new Error(`Lecture request failed (HTTP ${res.status})`);
     }
     return new DOMParser().parseFromString(await res.text(), "text/html");
   }
 
-  async function fetchHistoryDocument(url, page = 1) {
-    return parseLectureHistoryDocument(await fetchDocument(url), page);
+  async function fetchHistoryDocument(url, page = 1, cache) {
+    return parseLectureHistoryDocument(await fetchDocument(url, cache), page);
   }
 
-  async function fetchLecturePage(path, page, expectedTotal, verifyRowNumbers) {
-    const { total, lectures, hasExpectedRowNumbers } =
-      await fetchHistoryDocument(path + "&pageIndex=" + page, page);
-    if (expectedTotal !== undefined && total !== expectedTotal) {
-      throw new Error("Lecture history count changed during pagination");
+  async function fetchLecturePage(
+    path,
+    page,
+    expectedTotal,
+    verifyRowNumbers,
+    scan,
+    cache,
+  ) {
+    async function readPage(index, cacheMode = cache) {
+      const url = index === 1 ? path : path + "&pageIndex=" + index;
+      const result = await fetchHistoryDocument(url, index, cacheMode);
+      if (expectedTotal !== undefined && result.total !== expectedTotal) {
+        throw new Error("Lecture history count changed during pagination");
+      }
+      // Other numbering layouts remain supported without this optional check.
+      if (verifyRowNumbers && !result.hasExpectedRowNumbers) {
+        throw new Error("Unexpected lecture history page");
+      }
+      return result;
     }
-    // Other numbering layouts remain supported without this optional check.
-    if (verifyRowNumbers && !hasExpectedRowNumbers) {
-      throw new Error("Unexpected lecture history page");
+
+    const { lectures, rowKeys } = await readPage(page);
+    const previousRows = scan?.rowKeys;
+    if (previousRows && scan.isCurrent()) {
+      const previousKeys = new Set(previousRows.map((row) => row.key));
+      if (
+        rowKeys.some((row) => row.key !== null && previousKeys.has(row.key))
+      ) {
+        // Reapplication can produce genuinely similar rows. Confirm that the
+        // preceding page changed before discarding this scan.
+        const reread = await readPage(page - 1, "no-store");
+        if (
+          reread.rowKeys.some(
+            (row, index) =>
+              row.key !== previousRows[index].key ||
+              row.applied !== previousRows[index].applied,
+          )
+        ) {
+          const error = new Error(
+            "Lecture history order changed during pagination",
+          );
+          error.code = "HISTORY_ORDER_CHANGED";
+          throw error;
+        }
+      }
     }
+    if (scan) scan.rowKeys = rowKeys;
     return lectures;
   }
 
