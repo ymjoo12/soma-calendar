@@ -5,13 +5,23 @@ const Client = (() => {
       return {};
     }
 
-    const dateMatch = timeStr.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
-    if (!dateMatch) {
+    const datePattern = /(\d{4})\D+(\d{1,2})\D+(\d{1,2})/g;
+    const [dateMatch, endDate, extraDate] = timeStr.matchAll(datePattern);
+    if (!dateMatch || extraDate) {
       return {};
     }
 
     const [, year, month, day] = dateMatch;
-    const timeText = timeStr.slice(dateMatch.index + dateMatch[0].length);
+    // A history card represents one date. Only strip a repeated end date if it matches.
+    if (
+      endDate &&
+      [1, 2, 3].some((i) => Number(endDate[i]) !== Number(dateMatch[i]))
+    ) {
+      return {};
+    }
+    const timeText = timeStr
+      .slice(dateMatch.index + dateMatch[0].length)
+      .replace(datePattern, " ");
     const timeMatches = [...timeText.matchAll(/(\d{1,2})(?::(\d{2}))?\s*시?/g)];
     if (timeMatches.length < 2) {
       return {};
