@@ -431,7 +431,7 @@ function renderCalendarLecture(ev, lecture) {
 }
 
 // Actions
-function applyCancellationRows(pending, rows) {
+function applyCancellationRows(pending, rows, retry) {
   const updates = [];
   const removed = new Set();
   const previous = [];
@@ -451,25 +451,38 @@ function applyCancellationRows(pending, rows) {
 
     const row = rows.get(id);
     check.grant = row?.cancelId ? row : null;
-    if (lecture.endAt.getTime() !== baseline.endAt.getTime()) continue;
     if (!row) {
       removed.add(id);
       previous.push(lecture);
-    } else {
-      check.start = row.startAt.getTime();
-      if (
-        row.startAt < row.endAt &&
-        (check.start !== check.cardStart ||
-          row.endAt.getTime() !== lecture.endAt.getTime() ||
-          ["title", "author", "isApproved"].some(
-            (field) =>
-              lecture[field] === baseline[field] &&
-              row[field] !== baseline[field],
-          ))
-      ) {
-        updates.push({ row, baseline, requestedAt: check.requestedAt });
-        previous.push({ ...lecture });
-      }
+      continue;
+    }
+    check.start = row.startAt.getTime();
+    if (!(row.startAt < row.endAt)) continue;
+    const end = row.endAt.getTime();
+    const localEnd = lecture.endAt.getTime();
+    const previousEnd = baseline.endAt.getTime();
+    const startChanged = check.start !== check.cardStart;
+    const localEndChanged = localEnd !== previousEnd;
+    if (
+      retry &&
+      localEndChanged &&
+      (startChanged || (end !== previousEnd && end !== localEnd))
+    ) {
+      // Two different intervals changed during the request. Read the complete row once more.
+      check.grant = undefined;
+      check.requestedAt = Date.now();
+      retry.set(id, { check, baseline: { ...lecture } });
+      continue;
+    }
+    if (
+      (!localEndChanged && (startChanged || end !== localEnd)) ||
+      ["title", "author", "isApproved"].some(
+        (field) =>
+          lecture[field] === baseline[field] && row[field] !== baseline[field],
+      )
+    ) {
+      updates.push({ row, baseline, requestedAt: check.requestedAt });
+      previous.push({ ...lecture });
     }
   }
   if (!previous.length) return;
@@ -494,6 +507,28 @@ function applyCancellationRows(pending, rows) {
           lecture.location !== undefined && renderedIds.has(lecture.lectureId),
       ),
     );
+  }
+}
+
+async function verifyCancellationRows(pending) {
+  for (let attempt = 0; attempt < 2 && pending.size; attempt++) {
+    const retry = new Map();
+    try {
+      const rows = await Service.getCurrentCancellations(
+        new Set(pending.keys()),
+      );
+      applyCancellationRows(pending, rows, attempt === 0 ? retry : null);
+    } catch (error) {
+      // Retry once while the tab stays open. Returning to the tab can retry again.
+      for (const { check } of pending.values()) {
+        check.retryAt = check.isAutomaticRetry
+          ? Infinity
+          : Date.now() + CANCEL_RETRY_DELAY_MS;
+      }
+      console.error(error);
+      return;
+    }
+    pending = retry;
   }
 }
 
@@ -585,18 +620,7 @@ function refreshCancellationButtons(retryFailed = false, clickedButton) {
     );
   }
   if (pending.size) {
-    Service.getCurrentCancellations(new Set(pending.keys()))
-      .then((rows) => applyCancellationRows(pending, rows))
-      .catch((error) => {
-        // Retry once while the tab stays open. Returning to the tab can retry again.
-        for (const { check } of pending.values()) {
-          check.retryAt = check.isAutomaticRetry
-            ? Infinity
-            : Date.now() + CANCEL_RETRY_DELAY_MS;
-        }
-        console.error(error);
-      })
-      .finally(() => refreshCancellationButtons());
+    verifyCancellationRows(pending).finally(() => refreshCancellationButtons());
   }
   return selectedGrant;
 }
