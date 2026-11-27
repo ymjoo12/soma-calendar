@@ -76,13 +76,14 @@ jobs:
           name: extension-${{ needs.build.outputs.version || github.ref_name }}
 
       - name: Publish to Chrome Web Store
-        uses: browser-actions/release-chrome-extension@v0.2.1
+        uses: hamzahamidi/publish-to-chrome-web-store@v1
         with:
-          extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
-          extension-path: extension.zip
-          oauth-client-id: ${{ secrets.CHROME_CLIENT_ID }}
-          oauth-client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
-          oauth-refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          publisher-id: ${{ vars.CHROME_PUBLISHER_ID }}
+          item-id: ${{ secrets.CHROME_EXTENSION_ID }}
+          zip: extension.zip
+          client-id: ${{ secrets.CHROME_CLIENT_ID }}
+          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
 
   firefox:
     needs: build
