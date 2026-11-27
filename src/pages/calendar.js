@@ -213,6 +213,9 @@ function refreshVisibleCalendarCells(
     }
   }
   const knownIds = knownLectures.map(Cache.getLectureRecordId);
+  const focused = document.activeElement;
+  const focusedCard =
+    wrapper.contains(focused) && focused.closest(".calendar-lecture");
   const cells = wrapper.querySelectorAll(".calendar-cell[data-calendar-date]");
   const refreshedEventElems = [];
   for (const cell of cells) {
@@ -236,6 +239,21 @@ function refreshVisibleCalendarCells(
     }
     cell.replaceWith(newCell);
     refreshedEventElems.push(...newCell.querySelectorAll(".calendar-lecture"));
+  }
+  if (
+    focusedCard &&
+    !focused.isConnected &&
+    document.activeElement === document.body
+  ) {
+    const replacement = refreshedEventElems.find(
+      (card) => card.dataset.lectureId === focusedCard.dataset.lectureId,
+    );
+    const index = [...focusedCard.querySelectorAll("a, button")].indexOf(
+      focused,
+    );
+    replacement
+      ?.querySelectorAll("a, button")
+      [index]?.focus({ preventScroll: true });
   }
   if (refreshedEventElems.length === 0) {
     return;
