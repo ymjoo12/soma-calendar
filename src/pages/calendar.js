@@ -2,6 +2,7 @@ let lectures = [];
 let unverifiedIds = new Set();
 const LOCATION_UNAVAILABLE = "장소 확인 불가";
 const DAY_MS = 24 * 60 * 60 * 1000;
+const CANCEL_RETRY_DELAY_MS = 30_000;
 const cancellationChecks = new Map();
 let cancellationTimer;
 const CALENDAR_BASE_DETAIL_FIELDS = [
@@ -543,10 +544,11 @@ function refreshCancellationButtons(retryFailed = false, clickedButton) {
       const cutoff = start - DAY_MS;
       next = Math.min(next, now < cutoff ? cutoff : start);
       const checkedAt = check?.requestedAt ?? source?.requestedAt;
+      const failed = check?.retryAt !== undefined;
       if (
         (check || (!retired && !rescheduled)) &&
         (now < cutoff || checkedAt >= cutoff) &&
-        !(check?.failed && retryFailed)
+        !(failed && (retryFailed || now >= check.retryAt))
       ) {
         grant = check ? check.grant : lecture;
       } else {
@@ -558,11 +560,13 @@ function refreshCancellationButtons(retryFailed = false, clickedButton) {
           cancelId: lecture.cancelId,
           generation,
           requestedAt: now,
+          isAutomaticRetry: failed && !retryFailed,
         };
         cancellationChecks.set(id, check);
         pending.set(id, { check, baseline: { ...lecture } });
       }
       if (check && check.grant === undefined) needsHistory = true;
+      if (check?.retryAt) next = Math.min(next, check.retryAt);
     }
     button.disabled = !grant;
     button.classList.toggle("unavailable", !grant);
@@ -584,7 +588,12 @@ function refreshCancellationButtons(retryFailed = false, clickedButton) {
     Service.getCurrentCancellations(new Set(pending.keys()))
       .then((rows) => applyCancellationRows(pending, rows))
       .catch((error) => {
-        for (const { check } of pending.values()) check.failed = true;
+        // Retry once while the tab stays open. Returning to the tab can retry again.
+        for (const { check } of pending.values()) {
+          check.retryAt = check.isAutomaticRetry
+            ? Infinity
+            : Date.now() + CANCEL_RETRY_DELAY_MS;
+        }
         console.error(error);
       })
       .finally(() => refreshCancellationButtons());
@@ -669,10 +678,13 @@ function cancelApply(cancelId, qustnrSn, gubun = "mentoLec", stillAllowed) {
     return;
   }
 
-  if (
-    confirm("선택된 항목의 접수를 취소 하시겠습니까?") &&
-    (!stillAllowed || stillAllowed())
-  ) {
+  if (confirm("선택된 항목의 접수를 취소 하시겠습니까?")) {
+    if (stillAllowed && !stillAllowed()) {
+      alert(
+        "취소 요청을 보내지 않았습니다. 취소 버튼 상태를 확인한 뒤 다시 시도해주세요.",
+      );
+      return;
+    }
     fetch(`${Utils.getCenterPathPrefix()}/sw/mypage/userAnswer/cancel.json`, {
       method: "POST",
       headers: {
