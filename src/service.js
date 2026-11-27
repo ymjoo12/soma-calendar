@@ -2,6 +2,7 @@ const Service = (() => {
   // Keep invalidated results usable without writing them back to the cache.
   const uncachedLectureDetails = new WeakSet();
   const cancellationPages = new Map();
+  let historyRevision = 0;
 
   // Lecture identity
   function getLectureCacheIds(lectures) {
@@ -84,33 +85,69 @@ const Service = (() => {
     const path = Utils.getLectureHistoryPath();
     const generation = Cache.historyGeneration;
     const head = await Client.fetchLectureHistoryHead(path, 1, "no-store");
+    const isCurrent = () => generation === Cache.historyGeneration;
+    const scan = { rowKeys: head.rowKeys, isCurrent };
     const found = new Map();
-    const pages = new Set([1]);
-    for (const id of ids) {
-      const page = getCancellationPage(id)?.page;
-      if (page && page <= head.totalPages) pages.add(page);
-    }
-    // Rows can move to another page when registrations are added or removed.
-    for (let page = 2; page <= head.totalPages; page++) pages.add(page);
-    for (const page of pages) {
-      if (generation !== Cache.historyGeneration) break;
-      const rows =
-        page === 1
-          ? head.lectures
-          : await Client.fetchLecturePage(
-              path,
-              page,
-              head.total,
-              head.hasExpectedRowNumbers,
-              undefined,
-              "no-store",
-            );
+    function collect(page, rows) {
       for (const row of rows) {
-        if (ids.has(row.lectureId)) found.set(row.lectureId, row);
+        if (ids.has(row.lectureId) && !found.has(row.lectureId)) {
+          found.set(row.lectureId, { ...row, page });
+        }
       }
-      if (found.size === ids.size) break;
+    }
+    const readPage = (page, sequence) =>
+      Client.fetchLecturePage(
+        path,
+        page,
+        head.total,
+        head.hasExpectedRowNumbers,
+        sequence,
+        "no-store",
+      );
+    collect(1, head.lectures);
+    let through = 1;
+    const hints = new Set(
+      Array.from(ids, (id) => getCancellationPage(id)?.page),
+    );
+    for (const page of hints) {
+      if (!isCurrent() || found.size === ids.size) return found;
+      if (!page || page <= through || page > head.totalPages) continue;
+      const adjacent = page === through + 1;
+      collect(page, await readPage(page, adjacent ? scan : undefined));
+      if (adjacent) through = page;
+    }
+    if (found.size < ids.size) {
+      // Hints establish presence. Establish absence in native page order.
+      for (const [id, row] of found) {
+        if (row.page > through) found.delete(id);
+      }
+      for (
+        let page = through + 1;
+        page <= head.totalPages && isCurrent();
+        page++
+      ) {
+        collect(page, await readPage(page, scan));
+        if (found.size === ids.size) break;
+      }
     }
     return found;
+  }
+
+  function reconcileCancellationHistory(updates, removedIds) {
+    // A normal scan started before this observation must not restore its old snapshot.
+    historyRevision++;
+    Cache.removeHistoryLectureIds(Utils.getLectureHistoryPath(), removedIds);
+    for (const id of removedIds) cancellationPages.delete(id);
+    return updates.map(({ row, baseline, requestedAt }) => {
+      const lecture = Cache.updateLectureCache(row, { fields: baseline });
+      if (
+        lecture.cancelId === row.cancelId &&
+        lecture.startAt?.getTime() === row.startAt.getTime()
+      ) {
+        rememberCancellationPage([row], row.page, requestedAt);
+      }
+      return lecture;
+    });
   }
 
   function historyChanged(error) {
@@ -126,7 +163,9 @@ const Service = (() => {
     // A foreground reader still needs a result if the popup clears its scan.
     for (;;) {
       const generation = Cache.historyGeneration;
-      const isCurrent = () => generation === Cache.historyGeneration;
+      const revision = historyRevision;
+      const isCurrent = () =>
+        generation === Cache.historyGeneration && revision === historyRevision;
       const canRetryOrder = retriedGeneration !== generation;
       const cache = canRetryOrder ? "no-cache" : "no-store";
       try {
@@ -472,6 +511,7 @@ const Service = (() => {
     getLectureDetail,
     getCancellationPage,
     getCurrentCancellations,
+    reconcileCancellationHistory,
     getLectureFromDetailDocument,
     getLectureListItemsFromDocument,
     updateLectures,

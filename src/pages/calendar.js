@@ -430,6 +430,72 @@ function renderCalendarLecture(ev, lecture) {
 }
 
 // Actions
+function applyCancellationRows(pending, rows) {
+  const updates = [];
+  const removed = new Set();
+  const previous = [];
+  for (const [id, { check, baseline }] of pending) {
+    const lecture = getLectureByUrl(check.url);
+    if (
+      !lecture ||
+      cancellationChecks.get(id) !== check ||
+      Cache.historyGeneration !== check.generation ||
+      Service.getCancellationPage(id) !== check.source ||
+      unverifiedIds.has(id) ||
+      lecture.cancelId !== check.cancelId ||
+      lecture.startAt.getTime() !== check.cardStart
+    ) {
+      continue;
+    }
+
+    const row = rows.get(id);
+    check.grant = row?.cancelId ? row : null;
+    if (lecture.endAt.getTime() !== baseline.endAt.getTime()) continue;
+    if (!row) {
+      removed.add(id);
+      previous.push(lecture);
+    } else {
+      check.start = row.startAt.getTime();
+      if (
+        row.startAt < row.endAt &&
+        (check.start !== check.cardStart ||
+          row.endAt.getTime() !== lecture.endAt.getTime() ||
+          ["title", "author", "isApproved"].some(
+            (field) =>
+              lecture[field] === baseline[field] &&
+              row[field] !== baseline[field],
+          ))
+      ) {
+        updates.push({ row, baseline, requestedAt: check.requestedAt });
+        previous.push({ ...lecture });
+      }
+    }
+  }
+  if (!previous.length) return;
+  const updated = Service.reconcileCancellationHistory(updates, removed);
+  lectures = Service.updateLectures(
+    lectures.filter((item) => !removed.has(Cache.getLectureRecordId(item))),
+    updated,
+  );
+  const wrapper = document.getElementById("history-calendar");
+  if (wrapper) {
+    const renderedIds = new Set(
+      [...wrapper.querySelectorAll(".calendar-lecture")]
+        .filter(hasRenderedLocation)
+        .map((card) => card.dataset.lectureId),
+    );
+    refreshVisibleCalendarCells(
+      wrapper,
+      new Date(),
+      [...previous, ...updated],
+      updated.filter(
+        (lecture) =>
+          lecture.location !== undefined && renderedIds.has(lecture.lectureId),
+      ),
+    );
+  }
+}
+
 function refreshCancellationButtons(retryFailed = false, clickedButton) {
   clearTimeout(cancellationTimer);
   if (document.hidden) return;
@@ -494,7 +560,7 @@ function refreshCancellationButtons(retryFailed = false, clickedButton) {
           requestedAt: now,
         };
         cancellationChecks.set(id, check);
-        pending.set(id, check);
+        pending.set(id, { check, baseline: { ...lecture } });
       }
       if (check && check.grant === undefined) needsHistory = true;
     }
@@ -516,15 +582,9 @@ function refreshCancellationButtons(retryFailed = false, clickedButton) {
   }
   if (pending.size) {
     Service.getCurrentCancellations(new Set(pending.keys()))
-      .then((rows) => {
-        for (const [id, check] of pending) {
-          const row = rows.get(id);
-          if (row) check.start = row.startAt.getTime();
-          check.grant = row?.cancelId ? row : null;
-        }
-      })
+      .then((rows) => applyCancellationRows(pending, rows))
       .catch((error) => {
-        for (const check of pending.values()) check.failed = true;
+        for (const { check } of pending.values()) check.failed = true;
         console.error(error);
       })
       .finally(() => refreshCancellationButtons());
