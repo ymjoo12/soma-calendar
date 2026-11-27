@@ -148,11 +148,13 @@ function createDayCell(date, today, lectures, renderedDetailIds) {
   dateElement.textContent = `${dayStr}${isToday ? " [오늘]" : ""}`;
   cell.appendChild(dateElement);
 
+  let latestEndTime = -Infinity;
   filteredEvents.forEach((ev, index) => {
     const isConflict =
-      (index > 0 && filteredEvents[index - 1].endAt > ev.startAt) ||
+      ev.startAt.getTime() < latestEndTime ||
       (index < filteredEvents.length - 1 &&
         filteredEvents[index + 1].startAt < ev.endAt);
+    latestEndTime = Math.max(latestEndTime, ev.endAt.getTime());
     const isAlreadyPassed = ev.startAt < today;
     const isEnded = ev.endAt < today;
     const card = createCalendarLectureElement(
