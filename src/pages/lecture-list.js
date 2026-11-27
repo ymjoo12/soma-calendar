@@ -100,13 +100,28 @@ function insertOnlineFilterUI() {
 
   const onlineTabsList = document.createElement("ul");
   onlineTabsList.className = "tabs-sort soma-online-tabs";
+  let appliedGeneration;
 
   function applySelection() {
+    appliedGeneration = Cache.historyGeneration;
     if (currentOnlineFilter !== "all") {
       loadAllRowOnlineStatuses().catch((error) => console.error(error));
     }
     applyOnlineFilter();
   }
+
+  function refreshClearedFilter() {
+    if (
+      appliedGeneration !== Cache.historyGeneration &&
+      currentOnlineFilter !== "all" &&
+      !document.hidden
+    ) {
+      applySelection();
+    }
+  }
+
+  document.addEventListener("soma-lecture-cache-cleared", refreshClearedFilter);
+  document.addEventListener("visibilitychange", refreshClearedFilter);
 
   for (const { text, value } of [
     { text: "전체", value: "all" },

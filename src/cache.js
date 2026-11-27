@@ -867,6 +867,9 @@ const Cache = (() => {
     } catch (error) {
       console.error(error);
     }
+    globalThis.document?.dispatchEvent?.(
+      new Event("soma-lecture-cache-cleared"),
+    );
   }
 
   function clearHistorySessionCache() {
