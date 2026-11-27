@@ -1,6 +1,9 @@
 let lectures = [];
 let unverifiedIds = new Set();
 const LOCATION_UNAVAILABLE = "장소 확인 불가";
+const DAY_MS = 24 * 60 * 60 * 1000;
+const cancellationChecks = new Map();
+let cancellationTimer;
 const CALENDAR_BASE_DETAIL_FIELDS = [
   "dateStr",
   "timeRangeStr",
@@ -358,6 +361,10 @@ async function main() {
 
   const newElement = await generateCalendarElement();
   target.after(newElement);
+  const retryCancellationChecks = () => refreshCancellationButtons(true);
+  document.addEventListener("visibilitychange", retryCancellationChecks);
+  window.addEventListener("pageshow", retryCancellationChecks);
+  window.addEventListener("online", retryCancellationChecks);
 }
 
 // Detail rendering
@@ -421,6 +428,108 @@ function renderCalendarLecture(ev, lecture) {
 }
 
 // Actions
+function refreshCancellationButtons(retryFailed = false, clickedButton) {
+  clearTimeout(cancellationTimer);
+  if (document.hidden) return;
+
+  const now = Date.now();
+  const generation = Cache.historyGeneration;
+  const pending = new Map();
+  const byUrl = new Map(lectures.map((lecture) => [lecture.url, lecture]));
+  for (const [id, check] of cancellationChecks) {
+    if (!byUrl.has(check.url) || check.generation !== generation) {
+      cancellationChecks.delete(id);
+    }
+  }
+  let selectedGrant;
+  let next = Infinity;
+  for (const button of document.querySelectorAll(
+    ".calendar-lecture .cancel-btn",
+  )) {
+    const lecture = byUrl.get(button.dataset.id);
+    const id = lecture?.lectureId;
+    const cardStart = lecture?.startAt?.getTime();
+    const source = Service.getCancellationPage(id);
+    const retired = source && source.generation !== generation;
+    const unverified = unverifiedIds.has(id);
+    let check = cancellationChecks.get(id);
+    const rescheduled =
+      check && check.source === source && check.cardStart !== cardStart;
+    if (
+      check &&
+      (check.source !== source ||
+        check.cardStart !== cardStart ||
+        check.cancelId !== lecture?.cancelId)
+    ) {
+      check = undefined;
+    }
+    const start = check?.start ?? cardStart;
+    let grant = null;
+    let needsHistory = unverified;
+    if (
+      lecture?.cancelId &&
+      !unverified &&
+      now < start &&
+      (!source || retired || source.cancelId === lecture.cancelId)
+    ) {
+      const cutoff = start - DAY_MS;
+      next = Math.min(next, now < cutoff ? cutoff : start);
+      const checkedAt = check?.requestedAt ?? source?.requestedAt;
+      if (
+        (check || (!retired && !rescheduled)) &&
+        (now < cutoff || checkedAt >= cutoff) &&
+        !(check?.failed && retryFailed)
+      ) {
+        grant = check ? check.grant : lecture;
+      } else {
+        check = {
+          source,
+          cardStart,
+          start,
+          url: lecture.url,
+          cancelId: lecture.cancelId,
+          generation,
+          requestedAt: now,
+        };
+        cancellationChecks.set(id, check);
+        pending.set(id, check);
+      }
+      if (check && check.grant === undefined) needsHistory = true;
+    }
+    button.disabled = !grant;
+    button.classList.toggle("unavailable", !grant);
+    button.classList.toggle("past", Boolean(lecture?.cancelId) && now >= start);
+    button.title = grant
+      ? "Cancel (접수 취소)"
+      : needsHistory
+        ? "접수내역 확인 전에는 취소할 수 없습니다"
+        : "Cancel unavailable (접수 취소 불가)";
+    if (button === clickedButton) selectedGrant = grant;
+  }
+  if (Number.isFinite(next)) {
+    cancellationTimer = setTimeout(
+      refreshCancellationButtons,
+      Math.min(next - now, 2 ** 31 - 1),
+    );
+  }
+  if (pending.size) {
+    Service.getCurrentCancellations(new Set(pending.keys()))
+      .then((rows) => {
+        for (const [id, check] of pending) {
+          const row = rows.get(id);
+          if (row) check.start = row.startAt.getTime();
+          check.grant = row?.cancelId ? row : null;
+        }
+      })
+      .catch((error) => {
+        for (const check of pending.values()) check.failed = true;
+        console.error(error);
+      })
+      .finally(() => refreshCancellationButtons());
+  }
+  return selectedGrant;
+}
+
 function attachCalendarLectureActions(ev, lecture) {
   if (ev.dataset.actionsAttached === "true") {
     return;
@@ -469,16 +578,25 @@ function attachCalendarLectureActions(ev, lecture) {
   });
 
   const cancelBtn = ev.querySelector(".cancel-btn");
-  if (!cancelBtn.disabled && lecture.startAt >= new Date()) {
-    cancelBtn.addEventListener("click", () => {
-      cancelApply(lecture.cancelId, lecture.lectureId, lecture.cancelGubun);
-    });
-  }
+  cancelBtn.addEventListener("click", () => {
+    // Timers can be delayed in background tabs and during a native confirmation dialog.
+    const currentGrant = () => refreshCancellationButtons(false, cancelBtn);
+    const grant = currentGrant();
+    if (grant) {
+      const { cancelId, lectureId, cancelGubun } = grant;
+      cancelApply(cancelId, lectureId, cancelGubun, () => {
+        const current = currentGrant();
+        return (
+          current?.cancelId === cancelId && current.cancelGubun === cancelGubun
+        );
+      });
+    }
+  });
 
   ev.dataset.actionsAttached = "true";
 }
 
-function cancelApply(cancelId, qustnrSn, gubun = "mentoLec") {
+function cancelApply(cancelId, qustnrSn, gubun = "mentoLec", stillAllowed) {
   if (!cancelId || !qustnrSn) {
     alert("취소할 수 없는 항목입니다.");
     return;
@@ -489,7 +607,10 @@ function cancelApply(cancelId, qustnrSn, gubun = "mentoLec") {
     return;
   }
 
-  if (confirm("선택된 항목의 접수를 취소 하시겠습니까?")) {
+  if (
+    confirm("선택된 항목의 접수를 취소 하시겠습니까?") &&
+    (!stillAllowed || stillAllowed())
+  ) {
     fetch(`${Utils.getCenterPathPrefix()}/sw/mypage/userAnswer/cancel.json`, {
       method: "POST",
       headers: {
@@ -675,6 +796,7 @@ async function updateCalendarElement(
     (ev) =>
       ev.querySelector('[data-role="location"]')?.innerText === "장소 로딩중..",
   );
+  refreshCancellationButtons();
   await Utils.mapWithConcurrency(
     targetEventElems,
     LECTURE_DETAIL_CONCURRENCY_LIMIT,

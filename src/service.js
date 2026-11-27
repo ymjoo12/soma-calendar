@@ -1,6 +1,7 @@
 const Service = (() => {
   // Keep invalidated results usable without writing them back to the cache.
   const uncachedLectureDetails = new WeakSet();
+  const cancellationPages = new Map();
 
   // Lecture identity
   function getLectureCacheIds(lectures) {
@@ -62,6 +63,56 @@ const Service = (() => {
     );
   }
 
+  function rememberCancellationPage(lectures, page, requestedAt) {
+    for (const { lectureId, cancelId } of lectures) {
+      if (cancelId || cancellationPages.has(lectureId)) {
+        cancellationPages.set(lectureId, {
+          cancelId,
+          page,
+          requestedAt,
+          generation: Cache.historyGeneration,
+        });
+      }
+    }
+  }
+
+  function getCancellationPage(id) {
+    return cancellationPages.get(id);
+  }
+
+  async function getCurrentCancellations(ids) {
+    const path = Utils.getLectureHistoryPath();
+    const generation = Cache.historyGeneration;
+    const head = await Client.fetchLectureHistoryHead(path, 1, "no-store");
+    const found = new Map();
+    const pages = new Set([1]);
+    for (const id of ids) {
+      const page = getCancellationPage(id)?.page;
+      if (page && page <= head.totalPages) pages.add(page);
+    }
+    // Rows can move to another page when registrations are added or removed.
+    for (let page = 2; page <= head.totalPages; page++) pages.add(page);
+    for (const page of pages) {
+      if (generation !== Cache.historyGeneration) break;
+      const rows =
+        page === 1
+          ? head.lectures
+          : await Client.fetchLecturePage(
+              path,
+              page,
+              head.total,
+              head.hasExpectedRowNumbers,
+              undefined,
+              "no-store",
+            );
+      for (const row of rows) {
+        if (ids.has(row.lectureId)) found.set(row.lectureId, row);
+      }
+      if (found.size === ids.size) break;
+    }
+    return found;
+  }
+
   function historyOrderChanged(error) {
     return error?.code === "HISTORY_ORDER_CHANGED";
   }
@@ -76,9 +127,11 @@ const Service = (() => {
       const canRetryOrder = retriedGeneration !== generation;
       const cache = canRetryOrder ? "default" : "no-store";
       try {
+        const requestedAt = Date.now();
         const firstPage = await Client.fetchLectureHistoryHead(path, 1, cache);
         if (!isCurrent()) continue;
         Cache.writeHistoryPageCache(path, PAGE_ONE, firstPage.lectures, 0);
+        rememberCancellationPage(firstPage.lectures, 1, requestedAt);
         const result = await readPages(
           path,
           { ...firstPage, isCurrent, canRetryOrder, cache },
@@ -103,6 +156,7 @@ const Service = (() => {
     if (!firstPage.isCurrent()) return [];
     if (page === 1) return firstPage.lectures;
 
+    const requestedAt = Date.now();
     const lectures = await Client.fetchLecturePage(
       path,
       page,
@@ -113,6 +167,7 @@ const Service = (() => {
     );
     if (firstPage.isCurrent()) {
       Cache.writeHistoryPageCache(path, page, lectures, previousLectureCount);
+      rememberCancellationPage(lectures, page, requestedAt);
     }
     return lectures;
   }
@@ -410,6 +465,8 @@ const Service = (() => {
     getCalendarLectures: (startDate, retryOrder) =>
       readCurrentHistory(getCalendarLectures, startDate, retryOrder),
     getLectureDetail,
+    getCancellationPage,
+    getCurrentCancellations,
     getLectureFromDetailDocument,
     getLectureListItemsFromDocument,
     updateLectures,
