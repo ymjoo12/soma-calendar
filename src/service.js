@@ -113,8 +113,11 @@ const Service = (() => {
     return found;
   }
 
-  function historyOrderChanged(error) {
-    return error?.code === "HISTORY_ORDER_CHANGED";
+  function historyChanged(error) {
+    return (
+      error?.code === "HISTORY_ORDER_CHANGED" ||
+      error?.code === "HISTORY_PAGE_CHANGED"
+    );
   }
 
   async function readCurrentHistory(readPages, startDate, retryOrder = true) {
@@ -140,7 +143,7 @@ const Service = (() => {
         if (isCurrent()) return result;
       } catch (error) {
         if (isCurrent()) {
-          if (!canRetryOrder || !historyOrderChanged(error)) throw error;
+          if (!canRetryOrder || !historyChanged(error)) throw error;
           retriedGeneration = generation;
         }
       }
@@ -373,7 +376,7 @@ const Service = (() => {
             cachePastLecturePages(
               path,
               firstPastPage + 1,
-              { ...firstPage },
+              { ...firstPage, retryTransient: true },
               fetchedLectures.length,
               startDate,
               onPage,
@@ -382,7 +385,7 @@ const Service = (() => {
             ).then(firstPage.isCurrent, (error) => {
               if (
                 !firstPage.isCurrent() ||
-                (firstPage.canRetryOrder && historyOrderChanged(error))
+                (firstPage.canRetryOrder && historyChanged(error))
               ) {
                 return false;
               }
@@ -444,7 +447,8 @@ const Service = (() => {
           !hadCompleteCache ||
           missingHistoryIds.size > 0 ||
           !firstPage.isCurrent() ||
-          historyOrderChanged(error)
+          error?.code === "HISTORY_ORDER_CHANGED" ||
+          (firstPage.canRetryOrder && historyChanged(error))
         ) {
           throw error;
         }

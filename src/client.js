@@ -114,7 +114,7 @@ const Client = (() => {
     };
   }
 
-  function parseLectureHistoryDocument(container, page) {
+  function parseLectureHistoryDocument(container, page, expectedTotal) {
     const totalText = container
       .querySelector(".bbs-total strong.color-blue")
       ?.nextSibling?.textContent.trim();
@@ -130,7 +130,13 @@ const Client = (() => {
     }
 
     const rows = table.querySelectorAll(":scope > tbody > tr");
-    if (total === 0) {
+    const firstRowNumber = total - (page - 1) * LECTURE_HISTORY_PAGE_SIZE;
+    // The last page may legitimately be empty after registrations are removed.
+    const pageDisappeared =
+      expectedTotal !== undefined &&
+      total < expectedTotal &&
+      firstRowNumber <= 0;
+    if (total === 0 || pageDisappeared) {
       if (
         rows.length > 1 ||
         (rows.length === 1 && rows[0].querySelectorAll("td").length !== 1)
@@ -139,13 +145,12 @@ const Client = (() => {
       }
       return {
         total,
-        totalPages: 0,
+        totalPages: Math.ceil(total / LECTURE_HISTORY_PAGE_SIZE),
         lectures: [],
         rowKeys: [],
         hasExpectedRowNumbers: false,
       };
     }
-    const firstRowNumber = total - (page - 1) * LECTURE_HISTORY_PAGE_SIZE;
     const expectedRows = Math.min(LECTURE_HISTORY_PAGE_SIZE, firstRowNumber);
     if (expectedRows <= 0 || rows.length !== expectedRows) {
       throw new Error("Incomplete lecture history page");
@@ -254,17 +259,41 @@ const Client = (() => {
   }
 
   // Network requests
-  // Once the extension needs fresh data, revalidate any cached HTTP response.
-  async function fetchDocument(url, cache = "no-cache") {
-    const res = await fetch(url, { credentials: "include", cache });
-    if (!res.ok) {
-      throw new Error(`Lecture request failed (HTTP ${res.status})`);
-    }
-    return new DOMParser().parseFromString(await res.text(), "text/html");
+  function requestError(message, code, cause) {
+    return Object.assign(new Error(message, { cause }), { code });
   }
 
-  async function fetchHistoryDocument(url, page = 1, cache) {
-    return parseLectureHistoryDocument(await fetchDocument(url, cache), page);
+  // Once the extension needs fresh data, revalidate any cached HTTP response.
+  async function fetchDocument(url, cache = "no-cache") {
+    let res;
+    let html;
+    try {
+      res = await fetch(url, { credentials: "include", cache });
+      if (res.ok) html = await res.text();
+    } catch (error) {
+      if (error?.name === "AbortError") throw error;
+      throw requestError(
+        "Lecture request interrupted",
+        "LECTURE_TRANSIENT",
+        error,
+      );
+    }
+    if (!res.ok) {
+      const message = `Lecture request failed (HTTP ${res.status})`;
+      if (res.status === 408 || res.status >= 500) {
+        throw requestError(message, "LECTURE_TRANSIENT");
+      }
+      throw new Error(message);
+    }
+    return new DOMParser().parseFromString(html, "text/html");
+  }
+
+  async function fetchHistoryDocument(url, page = 1, cache, expectedTotal) {
+    return parseLectureHistoryDocument(
+      await fetchDocument(url, cache),
+      page,
+      expectedTotal,
+    );
   }
 
   async function fetchLecturePage(
@@ -277,13 +306,34 @@ const Client = (() => {
   ) {
     async function readPage(index, cacheMode = cache) {
       const url = index === 1 ? path : path + "&pageIndex=" + index;
-      const result = await fetchHistoryDocument(url, index, cacheMode);
+      const result = await fetchHistoryDocument(
+        url,
+        index,
+        cacheMode,
+        expectedTotal,
+      ).catch((error) => {
+        if (
+          error?.code !== "LECTURE_TRANSIENT" ||
+          !scan?.retryTransient ||
+          !scan.isCurrent()
+        ) {
+          throw error;
+        }
+        scan.retryTransient = false;
+        return fetchHistoryDocument(url, index, "no-store", expectedTotal);
+      });
       if (expectedTotal !== undefined && result.total !== expectedTotal) {
-        throw new Error("Lecture history count changed during pagination");
+        throw requestError(
+          "Lecture history count changed during pagination",
+          "HISTORY_PAGE_CHANGED",
+        );
       }
       // Other numbering layouts remain supported without this optional check.
       if (verifyRowNumbers && !result.hasExpectedRowNumbers) {
-        throw new Error("Unexpected lecture history page");
+        throw requestError(
+          "Unexpected lecture history page",
+          "HISTORY_PAGE_CHANGED",
+        );
       }
       return result;
     }
@@ -305,11 +355,10 @@ const Client = (() => {
               row.applied !== previousRows[index].applied,
           )
         ) {
-          const error = new Error(
+          throw requestError(
             "Lecture history order changed during pagination",
+            "HISTORY_ORDER_CHANGED",
           );
-          error.code = "HISTORY_ORDER_CHANGED";
-          throw error;
         }
       }
     }
