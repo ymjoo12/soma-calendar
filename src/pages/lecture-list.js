@@ -11,34 +11,80 @@ function loadSavedOnlineFilter() {
 
 let currentOnlineFilter = loadSavedOnlineFilter();
 const rowIsOnlineMap = new Map();
+const failedOnlineRows = new Set();
+let rowOnlineStatusGeneration = Cache.historyGeneration;
 let rowOnlineStatusPromise = null;
 let onlineFilterUpdateQueued = false;
+let lectureListItems = null;
 
 function getLectureListItems() {
-  return Service.getLectureListItemsFromDocument(document);
+  lectureListItems ??= Service.getLectureListItemsFromDocument(document);
+  return lectureListItems;
 }
 
-async function loadAllRowOnlineStatuses() {
-  if (rowOnlineStatusPromise) {
-    return rowOnlineStatusPromise;
+function syncRowOnlineStatusGeneration() {
+  const generation = Cache.historyGeneration;
+  if (rowOnlineStatusGeneration !== generation) {
+    rowOnlineStatusGeneration = generation;
+    rowOnlineStatusPromise = null;
+    failedOnlineRows.clear();
+    for (const row of rowIsOnlineMap.keys()) rowIsOnlineMap.set(row, null);
+    queueApplyOnlineFilter();
+  }
+  return generation;
+}
+
+async function loadAllRowOnlineStatuses(reconnected = false) {
+  const generation = syncRowOnlineStatusGeneration();
+  const running = rowOnlineStatusPromise;
+  while (rowOnlineStatusPromise) {
+    await rowOnlineStatusPromise;
+    if (
+      generation !== Cache.historyGeneration ||
+      currentOnlineFilter === "all" ||
+      document.hidden
+    ) {
+      return;
+    }
   }
 
+  const pendingItems = getLectureListItems().filter(({ row, lecture }) => {
+    if (typeof rowIsOnlineMap.get(row) !== "boolean") {
+      // Only a failed request needs a retry when the connection returns.
+      return reconnected ? failedOnlineRows.has(row) : !running;
+    }
+    const cached = Cache.getCachedLectureFields(lecture.url, ["isOnline"]);
+    if (cached) rowIsOnlineMap.set(row, cached.isOnline);
+    return !cached;
+  });
+  if (!pendingItems.length) return;
+
   rowOnlineStatusPromise = Utils.mapWithConcurrency(
-    getLectureListItems(),
+    pendingItems,
     LECTURE_DETAIL_CONCURRENCY_LIMIT,
     async ({ row, lecture }) => {
+      if (generation !== Cache.historyGeneration) return;
+      if (!rowIsOnlineMap.has(row)) rowIsOnlineMap.set(row, null);
       try {
         const detail = await Service.getLectureDetail(lecture.url, {
           requiredFields: ["isOnline"],
         });
+        if (generation !== Cache.historyGeneration) return;
         rowIsOnlineMap.set(row, detail?.isOnline ?? null);
+        failedOnlineRows.delete(row);
       } catch (error) {
-        console.error(error);
+        if (generation !== Cache.historyGeneration) return;
         rowIsOnlineMap.set(row, null);
+        failedOnlineRows.add(row);
+        console.error(error);
       }
       queueApplyOnlineFilter();
     },
-  );
+  ).finally(() => {
+    if (generation === syncRowOnlineStatusGeneration()) {
+      rowOnlineStatusPromise = null;
+    }
+  });
   return rowOnlineStatusPromise;
 }
 
@@ -55,13 +101,8 @@ function queueApplyOnlineFilter() {
 }
 
 function applyOnlineFilter() {
-  for (const { row } of getLectureListItems()) {
-    if (currentOnlineFilter === "all") {
-      row.style.display = "";
-      continue;
-    }
-    const isOnline = rowIsOnlineMap.get(row);
-    if (isOnline === undefined || isOnline === null) {
+  for (const [row, isOnline] of rowIsOnlineMap) {
+    if (currentOnlineFilter === "all" || typeof isOnline !== "boolean") {
       row.style.display = "";
       continue;
     }
@@ -78,6 +119,46 @@ function insertOnlineFilterUI() {
 
   const onlineTabsList = document.createElement("ul");
   onlineTabsList.className = "tabs-sort soma-online-tabs";
+  let appliedGeneration;
+  let wasHidden = document.hidden;
+  let wasOffline = navigator.onLine === false;
+
+  function applySelection(reconnected = false) {
+    appliedGeneration = Cache.historyGeneration;
+    if (currentOnlineFilter !== "all") {
+      loadAllRowOnlineStatuses(reconnected).catch((error) =>
+        console.error(error),
+      );
+    }
+    applyOnlineFilter();
+  }
+
+  function refreshActiveFilter(event) {
+    if (event.type === "soma-lecture-cache-cleared") {
+      syncRowOnlineStatusGeneration();
+    }
+    const resumed =
+      event.type === "visibilitychange" && wasHidden && !document.hidden;
+    if (event.type === "visibilitychange") wasHidden = document.hidden;
+    if (event.type === "offline" && !navigator.onLine) wasOffline = true;
+    const reconnected =
+      event.type === "online" && wasOffline && navigator.onLine;
+    if (reconnected) wasOffline = false;
+    if (
+      (appliedGeneration !== Cache.historyGeneration ||
+        resumed ||
+        reconnected) &&
+      currentOnlineFilter !== "all" &&
+      !document.hidden
+    ) {
+      applySelection(reconnected);
+    }
+  }
+
+  document.addEventListener("soma-lecture-cache-cleared", refreshActiveFilter);
+  document.addEventListener("visibilitychange", refreshActiveFilter);
+  window.addEventListener("offline", refreshActiveFilter);
+  window.addEventListener("online", refreshActiveFilter);
 
   for (const { text, value } of [
     { text: "전체", value: "all" },
@@ -100,13 +181,7 @@ function insertOnlineFilterUI() {
       currentOnlineFilter = value;
       saveOnlineFilter(value);
 
-      if (value !== "all") {
-        loadAllRowOnlineStatuses().catch((error) => {
-          console.error(error);
-        });
-      }
-
-      applyOnlineFilter();
+      applySelection();
     });
 
     li.appendChild(a);
@@ -114,6 +189,7 @@ function insertOnlineFilterUI() {
   }
 
   existingTabs.after(onlineTabsList);
+  applySelection();
 }
 
 // Calendar popup enrichment
@@ -182,7 +258,7 @@ function renderCalendarPopupDetail(container, detail) {
   const fields = [
     ["시간", detail.timeStr],
     ["장소", detail.location],
-    ["인원", peopleText],
+    ["인원", peopleText === undefined ? "인원 확인 불가" : (peopleText ?? "-")],
   ];
 
   for (const [label, value] of fields) {
@@ -206,7 +282,9 @@ function renderCalendarPopupDetail(container, detail) {
 async function enrichCalendarPopup(item, token) {
   const { popup, detailLink } = getCalendarPopupElements(item);
 
-  if (token && item.dataset.somaPopupEnrichmentToken !== token) {
+  const isCurrentPopup = () =>
+    !token || item.dataset.somaPopupEnrichmentToken === token;
+  if (!isCurrentPopup()) {
     return;
   }
 
@@ -227,6 +305,7 @@ async function enrichCalendarPopup(item, token) {
   container.dataset.loadingToken = token;
   renderCalendarPopupDetail(container, { loading: true });
 
+  const generation = syncRowOnlineStatusGeneration();
   try {
     const detail = await Service.getLectureDetail(detailLink.href, {
       requiredFields: [
@@ -237,19 +316,34 @@ async function enrichCalendarPopup(item, token) {
         "appliedCount",
       ],
     });
-    if (token && item.dataset.somaPopupEnrichmentToken !== token) {
-      return;
+    if (generation !== Cache.historyGeneration) return;
+    // A closed popup can still have an up-to-date status for its list row.
+    for (const { row, lecture } of lectureListItems ?? []) {
+      if (lecture.lectureId === detail.lectureId && rowIsOnlineMap.has(row)) {
+        rowIsOnlineMap.set(row, detail.isOnline ?? null);
+        failedOnlineRows.delete(row);
+        queueApplyOnlineFilter();
+      }
     }
+    if (!isCurrentPopup()) return;
     container.dataset.state = "loaded";
     container.dataset.loadedToken = token;
     renderCalendarPopupDetail(container, detail);
   } catch (error) {
+    if (generation !== Cache.historyGeneration || !isCurrentPopup()) return;
     container.dataset.state = "error";
     renderCalendarPopupDetail(container, { error: true });
     console.error(error);
   } finally {
     if (container.dataset.loadingToken === token) {
       delete container.dataset.loadingToken;
+    }
+    if (
+      generation !== syncRowOnlineStatusGeneration() &&
+      isCurrentPopup() &&
+      isCalendarPopupVisible(popup)
+    ) {
+      scheduleCalendarPopupEnrichment(item);
     }
   }
 }
@@ -345,13 +439,7 @@ if (Utils.isBusanCenterPage()) {
   insertOnlineFilterUI();
 }
 
-if (Utils.isBusanCenterPage() && currentOnlineFilter !== "all") {
-  applyOnlineFilter();
-}
-
-Service.getAllLectures().then((lectures) => {
-  const lecturesDictionary = Utils.convertLectureDictionary(lectures);
-
+function highlightOverlappingLectures(lectures) {
   const overlapPopupElement = document.createElement("div");
   overlapPopupElement.className = "overlap-popup";
   document.body.appendChild(overlapPopupElement);
@@ -360,39 +448,12 @@ Service.getAllLectures().then((lectures) => {
     row: lectureRow,
     lecture: rowLecture,
   } of getLectureListItems()) {
-    const datePart = rowLecture.dateStr;
-    const timePart = rowLecture.timeRangeStr;
-    if (!lecturesDictionary.hasOwnProperty(datePart)) {
-      continue;
-    }
-
-    let targetList = lecturesDictionary[datePart];
-    let [startMin, endMin] = timePart.split(" ~ ");
-    let hasOverlap = false;
-    let overlappingLectures = [];
-
-    for (let j = 0; j < targetList.length; j++) {
-      let [targetStartMin, targetEndMin] = targetList[j].split(" ~ ");
-
-      if (Utils.getMin(endMin) <= Utils.getMin(targetStartMin)) {
-        continue;
-      }
-
-      if (Utils.getMin(startMin) >= Utils.getMin(targetEndMin)) {
-        continue;
-      }
-
-      const overlappingLecture = lectures.find(
-        (lec) => lec.dateStr === datePart && lec.timeRangeStr === targetList[j],
-      );
-
-      if (overlappingLecture) {
-        hasOverlap = true;
-        overlappingLectures.push(overlappingLecture);
-      }
-    }
-
-    if (hasOverlap) {
+    const overlappingLectures = lectures.filter(
+      (lecture) =>
+        rowLecture.startAt < lecture.endAt &&
+        lecture.startAt < rowLecture.endAt,
+    );
+    if (overlappingLectures.length > 0) {
       lectureRow.classList.add("conflict-item");
       lectureRow.style.color = "red";
       lectureRow.querySelector(".tit").style.color = "red";
@@ -430,6 +491,9 @@ Service.getAllLectures().then((lectures) => {
       }
     }
   });
+}
 
-  observeCalendarPopups();
-});
+Service.getAllLectures()
+  .then(highlightOverlappingLectures)
+  .catch((error) => console.error(error));
+observeCalendarPopups();

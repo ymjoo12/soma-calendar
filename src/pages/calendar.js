@@ -1,4 +1,11 @@
 let lectures = [];
+let unverifiedIds = new Set();
+const LOCATION_UNAVAILABLE = "장소 확인 불가";
+const DAY_MS = 24 * 60 * 60 * 1000;
+const CANCEL_RETRY_DELAY_MS = 30_000;
+const cancellationChecks = new Map();
+const pendingExports = new Set();
+let cancellationTimer;
 const CALENDAR_BASE_DETAIL_FIELDS = [
   "dateStr",
   "timeRangeStr",
@@ -30,6 +37,7 @@ function createCalendarButton(
   disabled = false,
 ) {
   const button = document.createElement("button");
+  button.type = "button";
   button.className = extraClass ? `${className} ${extraClass}` : className;
   button.dataset.id = url;
   button.style.flex = "1";
@@ -48,6 +56,9 @@ function createCalendarLectureElement(
   const lectureElement = document.createElement("div");
   lectureElement.className =
     `calendar-lecture ${isConflict ? "conflict" : ""} ${isEnded ? "ended" : ""}`.trim();
+  lectureElement.dataset.lectureId = Cache.getLectureRecordId(ev);
+  lectureElement.dataset.startAt = ev.startAt.getTime();
+  lectureElement.dataset.endAt = ev.endAt.getTime();
   lectureElement.title = ev.title;
 
   const infoLink = document.createElement("a");
@@ -90,7 +101,8 @@ function createCalendarLectureElement(
 
   const buttonGroup = document.createElement("div");
   buttonGroup.className = "button-group";
-  const isCancelUnavailable = !ev.cancelId;
+  const needsHistory = unverifiedIds.has(ev.lectureId);
+  const isCancelUnavailable = !ev.cancelId || needsHistory;
   buttonGroup.append(
     createCalendarButton(
       "export-btn",
@@ -107,9 +119,11 @@ function createCalendarLectureElement(
     createCalendarButton(
       "cancel-btn",
       "❌ 취소",
-      isCancelUnavailable
-        ? "Cancel unavailable (접수 취소 불가)"
-        : "Cancel (접수 취소)",
+      needsHistory
+        ? "접수내역 확인 전에는 취소할 수 없습니다"
+        : isCancelUnavailable
+          ? "Cancel unavailable (접수 취소 불가)"
+          : "Cancel (접수 취소)",
       ev.url,
       isCancelUnavailable ? "unavailable" : isAlreadyPassed ? "past" : "",
       isCancelUnavailable,
@@ -120,33 +134,48 @@ function createCalendarLectureElement(
   return lectureElement;
 }
 
-function createDayCell(date, today, lectures) {
+function updateDayLabel(cell, date, isToday) {
   const weekday = ["일", "월", "화", "수", "목", "금", "토"][date.getDay()];
   const dayStr = `${date.getMonth() + 1}월 ${date.getDate()}일 (${weekday})`;
-  const isToday = date.toDateString() === today.toDateString();
+  cell.classList.toggle("today-bg", isToday);
+  const label = cell.firstElementChild;
+  label.classList.toggle("today-text", isToday);
+  label.textContent = dayStr + (isToday ? " [오늘]" : "");
+}
+
+function createDayCell(date, today, lectures, renderedDetailIds) {
   const filteredEvents = lectures.filter(
     (ev) => ev.startAt.toDateString() === date.toDateString(),
   );
 
   const cell = document.createElement("div");
-  cell.className = `calendar-cell ${isToday ? "today-bg" : ""}`.trim();
+  cell.className = "calendar-cell";
   cell.dataset.calendarDate = formatDateKey(date);
 
   const dateElement = document.createElement("div");
-  dateElement.className = `calendar-date ${isToday ? "today-text" : ""}`.trim();
-  dateElement.textContent = `${dayStr}${isToday ? " [오늘]" : ""}`;
+  dateElement.className = "calendar-date";
   cell.appendChild(dateElement);
+  updateDayLabel(cell, date, date.toDateString() === today.toDateString());
 
+  let latestEndTime = -Infinity;
   filteredEvents.forEach((ev, index) => {
     const isConflict =
-      (index > 0 && filteredEvents[index - 1].endAt > ev.startAt) ||
+      ev.startAt.getTime() < latestEndTime ||
       (index < filteredEvents.length - 1 &&
         filteredEvents[index + 1].startAt < ev.endAt);
-    const isAlreadyPassed = ev.startAt < today;
-    const isEnded = ev.endAt < today;
-    cell.appendChild(
-      createCalendarLectureElement(ev, isConflict, isAlreadyPassed, isEnded),
+    latestEndTime = Math.max(latestEndTime, ev.endAt.getTime());
+    const isAlreadyPassed = ev.startAt <= today;
+    const isEnded = ev.endAt <= today;
+    const card = createCalendarLectureElement(
+      ev,
+      isConflict,
+      isAlreadyPassed,
+      isEnded,
     );
+    if (renderedDetailIds?.has(card.dataset.lectureId)) {
+      renderCalendarLecture(card, ev);
+    }
+    cell.appendChild(card);
   });
 
   return cell;
@@ -159,142 +188,205 @@ function formatDateKey(date) {
   return `${year}-${month}-${day}`;
 }
 
-function getRenderedCalendarLecture(ev) {
-  const url = ev.querySelector("a")?.href;
+function hasRenderedLocation(ev) {
   const location = ev.querySelector('[data-role="location"]')?.innerText;
-  if (!url || !location || location === "장소 로딩중.." || location === "-") {
-    return null;
-  }
-
-  const peopleElem = ev.querySelector('[data-role="people"]');
-  return {
-    url,
-    title: ev.querySelector('[data-role="title"]')?.innerText,
-    author: ev.querySelector('[data-role="author"]')?.innerText,
-    timeRangeStr: ev.querySelector('[data-role="time"]')?.innerText,
-    location,
-    peopleText: peopleElem?.innerText,
-    peopleColor: peopleElem?.style.color,
-  };
+  return (
+    !ev.dataset.detailLoadFailed &&
+    location &&
+    location !== "장소 로딩중.." &&
+    location !== "-" &&
+    location !== LOCATION_UNAVAILABLE
+  );
 }
 
-function renderPreservedCalendarLecture(ev, rendered) {
-  ev.title = rendered.title;
-  setLectureText(ev, "title", rendered.title);
-  setLectureText(ev, "author", rendered.author);
-  setLectureText(ev, "time", rendered.timeRangeStr);
-  setLectureText(ev, "location", rendered.location);
-
-  const peopleElem = ev.querySelector('[data-role="people"]');
-  if (peopleElem && rendered.peopleText) {
-    peopleElem.innerText = rendered.peopleText;
-    peopleElem.style.color = rendered.peopleColor || "";
-  }
+function isCalendarControlVisible(control, wrapper) {
+  const rect = control.getBoundingClientRect();
+  const grid = wrapper.getBoundingClientRect();
+  const left = Math.max(0, grid.left, rect.left);
+  const right = Math.min(window.innerWidth, grid.right, rect.right);
+  const top = Math.max(0, grid.top, rect.top);
+  const bottom = Math.min(window.innerHeight, grid.bottom, rect.bottom);
+  return (
+    left < right &&
+    top < bottom &&
+    control.contains(
+      document.elementFromPoint((left + right) / 2, (top + bottom) / 2),
+    )
+  );
 }
 
 function refreshVisibleCalendarCells(
   wrapper,
   today,
   changedLectures,
-  extraDateKeys = [],
   knownLectures = [],
 ) {
+  // A replacement snapshot rebuilds every visible day from fresh data.
+  const refreshAll = changedLectures === undefined;
   const changedDateKeys = new Set(
-    changedLectures.map((lecture) => formatDateKey(lecture.startAt)),
+    (changedLectures ?? []).map((lecture) => formatDateKey(lecture.startAt)),
   );
-  for (const dateKey of extraDateKeys) {
-    changedDateKeys.add(dateKey);
+  if (!refreshAll) {
+    const changedIds = new Set(changedLectures.map(Cache.getLectureRecordId));
+    // Another response may already have moved the card since this request began.
+    for (const card of wrapper.querySelectorAll(".calendar-lecture")) {
+      if (changedIds.has(card.dataset.lectureId)) {
+        changedDateKeys.add(
+          card.closest(".calendar-cell").dataset.calendarDate,
+        );
+      }
+    }
   }
-  const knownLectureByUrl = new Map(
-    knownLectures.map((lecture) => [lecture.url, lecture]),
-  );
+  const knownIds = knownLectures.map(Cache.getLectureRecordId);
+  const focused = document.activeElement;
+  const focusedCard =
+    wrapper.contains(focused) && focused.closest(".calendar-lecture");
+  const keepFocusVisible =
+    focusedCard &&
+    !document.hidden &&
+    document.hasFocus() &&
+    focused.matches(":focus-visible") &&
+    (refreshAll ||
+      changedDateKeys.has(focusedCard.parentElement.dataset.calendarDate)) &&
+    isCalendarControlVisible(focused, wrapper);
   const cells = wrapper.querySelectorAll(".calendar-cell[data-calendar-date]");
   const refreshedEventElems = [];
   for (const cell of cells) {
-    if (!changedDateKeys.has(cell.dataset.calendarDate)) {
+    if (!refreshAll && !changedDateKeys.has(cell.dataset.calendarDate)) {
       continue;
     }
-    const renderedLectureByUrl = new Map();
-    for (const oldEventElem of cell.querySelectorAll(".calendar-lecture")) {
-      const renderedLecture = getRenderedCalendarLecture(oldEventElem);
-      if (renderedLecture) {
-        renderedLectureByUrl.set(renderedLecture.url, renderedLecture);
+    const renderedDetailIds = new Set(knownIds);
+    const oldEventElems = refreshAll
+      ? []
+      : cell.querySelectorAll(".calendar-lecture");
+    for (const oldEventElem of oldEventElems) {
+      if (hasRenderedLocation(oldEventElem)) {
+        renderedDetailIds.add(oldEventElem.dataset.lectureId);
       }
     }
 
     const date = new Date(`${cell.dataset.calendarDate}T00:00:00`);
-    const newCell = createDayCell(date, today, lectures);
+    const newCell = createDayCell(date, today, lectures, renderedDetailIds);
     if (cell.dataset.pastCell) {
       newCell.dataset.pastCell = cell.dataset.pastCell;
     }
     cell.replaceWith(newCell);
-    const newEventElems = newCell.querySelectorAll(".calendar-lecture");
-    for (const newEventElem of newEventElems) {
-      const knownLecture = knownLectureByUrl.get(
-        newEventElem.querySelector("a")?.href,
-      );
-      if (knownLecture) {
-        renderCalendarLecture(newEventElem, knownLecture);
-        continue;
-      }
-      const renderedLecture = renderedLectureByUrl.get(
-        newEventElem.querySelector("a")?.href,
-      );
-      if (renderedLecture) {
-        renderPreservedCalendarLecture(newEventElem, renderedLecture);
-      }
+    refreshedEventElems.push(...newCell.querySelectorAll(".calendar-lecture"));
+  }
+  if (
+    focusedCard &&
+    !focused.isConnected &&
+    document.activeElement === document.body
+  ) {
+    const replacement = refreshedEventElems.find(
+      (card) => card.dataset.lectureId === focusedCard.dataset.lectureId,
+    );
+    const index = [...focusedCard.querySelectorAll("a, button")].indexOf(
+      focused,
+    );
+    const control = replacement?.querySelectorAll("a, button")[index];
+    control?.focus({ preventScroll: true });
+    if (
+      keepFocusVisible &&
+      control &&
+      document.activeElement === control &&
+      !isCalendarControlVisible(control, wrapper)
+    ) {
+      control.scrollIntoView({
+        block: "nearest",
+        inline: "nearest",
+        behavior: "instant",
+      });
     }
-    refreshedEventElems.push(...newEventElems);
   }
   if (refreshedEventElems.length === 0) {
     return;
   }
-  updateCalendarElement(refreshedEventElems, wrapper, today).catch((error) => {
+  updateCalendarElement(refreshedEventElems, wrapper).catch((error) => {
     console.error(error);
   });
 }
 
-function createPastButton(wrapper, startDate, today) {
-  let currentStart = new Date(startDate);
-  const initialStart = new Date(startDate);
+function setCalendarRange(wrapper, today, pastDays) {
+  const weekStart = Utils.getCurrentWeekStartDate(today);
+  const first = new Date(weekStart);
+  first.setDate(first.getDate() - pastDays);
+  const afterLast = new Date(weekStart);
+  afterLast.setDate(afterLast.getDate() + 28);
+  const firstKey = formatDateKey(first);
+  const afterLastKey = formatDateKey(afterLast);
+  const todayKey = formatDateKey(today);
+  for (const cell of wrapper.querySelectorAll("[data-calendar-date]")) {
+    const key = cell.dataset.calendarDate;
+    if (key < firstKey || key >= afterLastKey) cell.remove();
+  }
 
+  // Leave overlapping cells in place so focus, detail requests and scroll anchors survive.
+  const added = [];
+  let next = wrapper.querySelector(".past-btn-cell").nextElementSibling;
+  for (
+    const date = new Date(first);
+    date < afterLast;
+    date.setDate(date.getDate() + 1)
+  ) {
+    const key = formatDateKey(date);
+    let cell = next;
+    if (cell?.dataset.calendarDate === key) {
+      next = cell.nextElementSibling;
+      if (cell.classList.contains("today-bg") !== (key === todayKey)) {
+        updateDayLabel(cell, date, key === todayKey);
+      }
+    } else {
+      cell = createDayCell(date, today, lectures);
+      wrapper.insertBefore(cell, next);
+      added.push(...cell.querySelectorAll(".calendar-lecture"));
+    }
+    if (date < weekStart) cell.dataset.pastCell = "true";
+    else delete cell.dataset.pastCell;
+  }
+  wrapper.dataset.today = todayKey;
+  if (wrapper.isConnected && added.length) {
+    // The clock may be reconciling buttons in this same turn.
+    queueMicrotask(() => {
+      updateCalendarElement(added, wrapper).catch(console.error);
+    });
+  }
+}
+
+function createPastButton(wrapper) {
   const cell = document.createElement("div");
   cell.className = "calendar-cell past-btn-cell";
+  // The seven columns may extend past the calendar's visible width.
+  let controlWidth;
+  new ResizeObserver(([entry]) => {
+    if (entry.contentRect.width !== controlWidth) {
+      controlWidth = entry.contentRect.width;
+      cell.style.maxInlineSize = `${controlWidth}px`;
+    }
+  }).observe(wrapper);
 
   const pastBtn = document.createElement("button");
+  pastBtn.type = "button";
   pastBtn.className = "past-btn";
   pastBtn.textContent = "⬆ 이전 2주 보기";
 
   const resetBtn = document.createElement("button");
+  resetBtn.type = "button";
   resetBtn.className = "past-btn";
   resetBtn.textContent = "↩ 이번주부터 보기";
   resetBtn.hidden = true;
 
   pastBtn.addEventListener("click", () => {
-    currentStart.setDate(currentStart.getDate() - 14);
-    const insertBefore = cell.nextSibling;
-    const addedEventElems = [];
-    for (let i = 0; i < 14; i++) {
-      const date = new Date(currentStart);
-      date.setDate(currentStart.getDate() + i);
-      const dayCell = createDayCell(date, today, lectures);
-      dayCell.dataset.pastCell = "true";
-      wrapper.insertBefore(dayCell, insertBefore);
-      addedEventElems.push(...dayCell.querySelectorAll(".calendar-lecture"));
-    }
+    const pastDays = wrapper.querySelectorAll("[data-past-cell]").length;
+    setCalendarRange(wrapper, new Date(), pastDays + 14);
     resetBtn.hidden = false;
-    updateCalendarElement(addedEventElems, wrapper, today).catch((error) => {
-      console.error(error);
-    });
   });
 
   resetBtn.addEventListener("click", () => {
-    for (const pastCell of wrapper.querySelectorAll(
-      '.calendar-cell[data-past-cell="true"]',
-    )) {
-      pastCell.remove();
+    setCalendarRange(wrapper, new Date(), 0);
+    if (document.activeElement === resetBtn) {
+      pastBtn.focus({ preventScroll: true });
     }
-    currentStart = new Date(initialStart);
     resetBtn.hidden = true;
   });
 
@@ -302,44 +394,95 @@ function createPastButton(wrapper, startDate, today) {
   return cell;
 }
 
-async function generateCalendarElement() {
-  const today = new Date();
-  const startDate = new Date(today);
-  startDate.setDate(today.getDate() - today.getDay());
+function observeCalendarHistory(wrapper, initial) {
+  let generation = initial.cacheGeneration;
+  let loading = false;
+  wrapper.dataset.historyGeneration = generation;
+
+  function applyPage(pageLectures, previousLectures = [], removedIds) {
+    if (removedIds?.size) {
+      lectures = lectures.filter(
+        (lecture) => !removedIds.has(Cache.getLectureRecordId(lecture)),
+      );
+    }
+    lectures = Service.updateLectures(lectures, pageLectures);
+    refreshVisibleCalendarCells(wrapper, new Date(), [
+      ...previousLectures,
+      ...pageLectures,
+    ]);
+  }
+
+  async function load(snapshot) {
+    loading = true;
+    try {
+      while (wrapper.isConnected) {
+        if (snapshot?.cacheGeneration === Cache.historyGeneration) {
+          generation = snapshot.cacheGeneration;
+          if (
+            !snapshot.loadPastLectures ||
+            (await snapshot.loadPastLectures(applyPage))
+          ) {
+            return;
+          }
+        }
+
+        const cleared = generation !== Cache.historyGeneration;
+        if (cleared && document.hidden) return;
+        generation = Cache.historyGeneration;
+        snapshot = await Service.getCalendarLectures(
+          Utils.getCurrentWeekStartDate(),
+          cleared,
+        );
+        if (
+          !wrapper.isConnected ||
+          snapshot.cacheGeneration !== Cache.historyGeneration
+        ) {
+          continue;
+        }
+        wrapper.dataset.historyGeneration = snapshot.cacheGeneration;
+        lectures = snapshot.lectures;
+        unverifiedIds = snapshot.unverifiedIds;
+        refreshVisibleCalendarCells(wrapper, new Date());
+      }
+    } catch (error) {
+      // The current attempt failed. Another explicit clear can start a fresh scan.
+      generation = Cache.historyGeneration;
+      if (Number(wrapper.dataset.historyGeneration) !== generation) {
+        for (const card of wrapper.querySelectorAll(".calendar-lecture")) {
+          renderCachedCalendarFields(card, false, {});
+        }
+      }
+      console.error(error);
+    } finally {
+      loading = false;
+      refreshIfCleared();
+    }
+  }
+
+  function refreshIfCleared() {
+    if (!wrapper.isConnected || generation === Cache.historyGeneration) return;
+    unverifiedIds = new Set(lectures.map(Cache.getLectureRecordId));
+    if (document.hidden) return;
+    refreshCancellationButtons();
+    if (!loading) load();
+  }
+
+  document.addEventListener("soma-lecture-cache-cleared", refreshIfCleared);
+  document.addEventListener("visibilitychange", refreshIfCleared);
+  window.addEventListener("pageshow", refreshIfCleared);
+  if (generation === Cache.historyGeneration) load(initial);
+  else refreshIfCleared();
+}
+
+function generateCalendarElement(calendarLectures) {
   const wrapper = document.createElement("div");
   wrapper.id = "history-calendar";
 
-  const calendarLectures = await Service.getCalendarLectures(startDate);
   lectures = calendarLectures.lectures;
+  unverifiedIds = calendarLectures.unverifiedIds;
 
-  wrapper.appendChild(createPastButton(wrapper, startDate, today));
-
-  for (let i = 0; i < 28; i++) {
-    const date = new Date(startDate);
-    date.setDate(startDate.getDate() + i);
-    wrapper.appendChild(createDayCell(date, today, lectures));
-  }
-
-  if (calendarLectures.loadPastLectures) {
-    calendarLectures
-      .loadPastLectures((pageLectures, previousLectures = [], removedIds) => {
-        const removedIdSet = removedIds ?? new Set();
-        if (removedIdSet.size > 0) {
-          lectures = lectures.filter(
-            (lecture) => !removedIdSet.has(Cache.getLectureRecordId(lecture)),
-          );
-        }
-        lectures = Service.updateLectures(lectures, pageLectures);
-        refreshVisibleCalendarCells(wrapper, today, [
-          ...previousLectures,
-          ...pageLectures,
-        ]);
-      })
-      .catch((error) => {
-        console.error(error);
-      });
-  }
-
+  wrapper.appendChild(createPastButton(wrapper));
+  setCalendarRange(wrapper, new Date(), 0);
   return wrapper;
 }
 
@@ -348,9 +491,19 @@ async function main() {
   const target =
     document.querySelector("#contentsList > div > div > ul.tabs-st1.col2") ||
     document.querySelector("#contentsList > div > div > ul.tabs-st1.col3");
+  if (!target) return;
 
-  const newElement = await generateCalendarElement();
+  const calendarLectures = await Service.getCalendarLectures(
+    Utils.getCurrentWeekStartDate(),
+  );
+  const newElement = generateCalendarElement(calendarLectures);
   target.after(newElement);
+  observeCalendarHistory(newElement, calendarLectures);
+  const retryCancellationChecks = () => refreshCancellationButtons(true);
+  document.addEventListener("visibilitychange", retryCancellationChecks);
+  window.addEventListener("pageshow", retryCancellationChecks);
+  window.addEventListener("online", retryCancellationChecks);
+  return newElement;
 }
 
 // Detail rendering
@@ -380,67 +533,312 @@ function setLectureText(ev, role, value) {
   }
 }
 
-function getCalendarPeopleText(lecture) {
+function getCalendarPeopleText(lecture, showApproval = true) {
   const hasPeopleCounts =
     /^\d+$/.test(lecture.appliedCount) && /^\d+$/.test(lecture.totalCount);
   const peopleText = hasPeopleCounts
     ? `${lecture.appliedCount}명 / ${lecture.totalCount}명`
     : lecture.capacityText;
-  if (!peopleText) {
-    return null;
+  if (peopleText === undefined) return "인원 확인 불가";
+  if (!showApproval) return peopleText ?? "-";
+  return (
+    (peopleText ?? "-") + (lecture.isApproved ? " [개설 확정]" : " [미승인]")
+  );
+}
+
+function calendarLocationText(location) {
+  return location === undefined ? LOCATION_UNAVAILABLE : location || "-";
+}
+
+function renderCalendarPeople(ev, lecture, showApproval = true) {
+  const peopleElem = ev.querySelector('[data-role="people"]');
+  if (peopleElem) {
+    peopleElem.innerText = getCalendarPeopleText(lecture, showApproval);
+    // Keep past lectures visually muted even when approval is missing.
+    peopleElem.style.color =
+      showApproval && !lecture.isApproved && !ev.classList.contains("ended")
+        ? "red"
+        : "";
   }
-  return peopleText + (lecture.isApproved ? " [개설 확정]" : " [미승인]");
 }
 
 function renderCalendarLecture(ev, lecture) {
+  delete ev.dataset.detailLoadFailed;
   ev.title = lecture.title;
   setLectureText(ev, "title", lecture.title);
   setLectureText(ev, "author", lecture.author);
   setLectureText(ev, "time", lecture.timeRangeStr);
-  setLectureText(ev, "location", lecture.location || "-");
+  setLectureText(ev, "location", calendarLocationText(lecture.location));
 
-  const peopleElem = ev.querySelector('[data-role="people"]');
-  const peopleText = getCalendarPeopleText(lecture);
-  if (peopleElem && peopleText) {
-    peopleElem.innerText = peopleText;
-    peopleElem.style.color = "";
-    if (!lecture.isApproved && !ev.classList.contains("ended")) {
-      // Keep past lectures visually muted even when approval is missing.
-      peopleElem.style.color = "red";
-    }
-  }
+  renderCalendarPeople(ev, lecture);
 }
 
 // Actions
+function applyCancellationRows(pending, rows, retry) {
+  const updates = [];
+  const removed = new Set();
+  const previous = [];
+  for (const [id, { check, baseline }] of pending) {
+    const lecture = getLectureByUrl(check.url);
+    if (
+      !lecture ||
+      cancellationChecks.get(id) !== check ||
+      Cache.historyGeneration !== check.generation ||
+      Service.getCancellationPage(id) !== check.source ||
+      unverifiedIds.has(id) ||
+      lecture.cancelId !== check.cancelId ||
+      lecture.startAt.getTime() !== check.cardStart
+    ) {
+      continue;
+    }
+
+    const row = rows.get(id);
+    check.grant = row?.cancelId ? row : null;
+    if (!row) {
+      removed.add(id);
+      previous.push(lecture);
+      continue;
+    }
+    check.start = row.startAt.getTime();
+    if (!(row.startAt < row.endAt)) continue;
+    const end = row.endAt.getTime();
+    const localEnd = lecture.endAt.getTime();
+    const previousEnd = baseline.endAt.getTime();
+    const startChanged = check.start !== check.cardStart;
+    const localEndChanged = localEnd !== previousEnd;
+    if (
+      retry &&
+      localEndChanged &&
+      (startChanged || (end !== previousEnd && end !== localEnd))
+    ) {
+      // Two different intervals changed during the request. Read the complete row once more.
+      check.grant = undefined;
+      check.requestedAt = Date.now();
+      retry.set(id, { check, baseline: { ...lecture } });
+      continue;
+    }
+    if (
+      (!localEndChanged && (startChanged || end !== localEnd)) ||
+      ["title", "author", "isApproved"].some(
+        (field) =>
+          lecture[field] === baseline[field] && row[field] !== baseline[field],
+      )
+    ) {
+      updates.push({ row, baseline, requestedAt: check.requestedAt });
+      previous.push({ ...lecture });
+    }
+  }
+  if (!previous.length) return;
+  const updated = Service.reconcileCancellationHistory(updates, removed);
+  lectures = Service.updateLectures(
+    lectures.filter((item) => !removed.has(Cache.getLectureRecordId(item))),
+    updated,
+  );
+  const wrapper = document.getElementById("history-calendar");
+  if (wrapper) {
+    const renderedIds = new Set(
+      [...wrapper.querySelectorAll(".calendar-lecture")]
+        .filter(hasRenderedLocation)
+        .map((card) => card.dataset.lectureId),
+    );
+    refreshVisibleCalendarCells(
+      wrapper,
+      new Date(),
+      [...previous, ...updated],
+      updated.filter(
+        (lecture) =>
+          lecture.location !== undefined && renderedIds.has(lecture.lectureId),
+      ),
+    );
+  }
+}
+
+async function verifyCancellationRows(pending) {
+  for (let attempt = 0; attempt < 2 && pending.size; attempt++) {
+    const retry = new Map();
+    try {
+      const rows = await Service.getCurrentCancellations(
+        new Set(pending.keys()),
+      );
+      applyCancellationRows(pending, rows, attempt === 0 ? retry : null);
+    } catch (error) {
+      // Retry once while the tab stays open. Returning to the tab can retry again.
+      for (const { check } of pending.values()) {
+        check.retryAt = check.isAutomaticRetry
+          ? Infinity
+          : Date.now() + CANCEL_RETRY_DELAY_MS;
+      }
+      console.error(error);
+      return;
+    }
+    pending = retry;
+  }
+}
+
+function refreshCancellationButtons(retryFailed = false, clickedButton) {
+  clearTimeout(cancellationTimer);
+  if (document.hidden) return;
+
+  const now = Date.now();
+  const today = new Date(now);
+  const wrapper = document.getElementById("history-calendar");
+  let next = Infinity;
+  if (wrapper?.dataset.today) {
+    if (wrapper.dataset.today !== formatDateKey(today)) {
+      const pastDays = wrapper.querySelectorAll("[data-past-cell]").length;
+      setCalendarRange(wrapper, today, pastDays);
+    }
+    next = today.setHours(24, 0, 0, 0);
+  }
+  const generation = Cache.historyGeneration;
+  const pending = new Map();
+  const byUrl = new Map(lectures.map((lecture) => [lecture.url, lecture]));
+  for (const [id, check] of cancellationChecks) {
+    if (!byUrl.has(check.url) || check.generation !== generation) {
+      cancellationChecks.delete(id);
+    }
+  }
+  let selectedGrant;
+  for (const button of document.querySelectorAll(
+    ".calendar-lecture .cancel-btn",
+  )) {
+    const lecture = byUrl.get(button.dataset.id);
+    const card = button.closest(".calendar-lecture");
+    const end = Number(card.dataset.endAt);
+    if (now < end) next = Math.min(next, end);
+    const ended = now >= end;
+    if (card.classList.contains("ended") !== ended) {
+      card.classList.toggle("ended", ended);
+      const people = card.querySelector('[data-role="people"]');
+      if (ended && people?.style.color === "red") people.style.color = "";
+      if (
+        !ended &&
+        lecture &&
+        !lecture.isApproved &&
+        people?.innerText === getCalendarPeopleText(lecture)
+      ) {
+        people.style.color = "red";
+      }
+    }
+    const id = lecture?.lectureId;
+    const cardStart = lecture?.startAt?.getTime();
+    const source = Service.getCancellationPage(id);
+    const retired = source && source.generation !== generation;
+    const unverified = unverifiedIds.has(id);
+    let check = cancellationChecks.get(id);
+    const rescheduled =
+      check && check.source === source && check.cardStart !== cardStart;
+    if (
+      check &&
+      (check.source !== source ||
+        check.cardStart !== cardStart ||
+        check.cancelId !== lecture?.cancelId)
+    ) {
+      check = undefined;
+    }
+    const start = check?.start ?? cardStart;
+    let grant = null;
+    let needsHistory = unverified;
+    if (
+      lecture?.cancelId &&
+      !unverified &&
+      now < start &&
+      (!source || retired || source.cancelId === lecture.cancelId)
+    ) {
+      const cutoff = start - DAY_MS;
+      next = Math.min(next, now < cutoff ? cutoff : start);
+      const checkedAt = check?.requestedAt ?? source?.requestedAt;
+      const failed = check?.retryAt !== undefined;
+      if (
+        (check || (!retired && !rescheduled)) &&
+        (now < cutoff || checkedAt >= cutoff) &&
+        !(failed && (retryFailed || now >= check.retryAt))
+      ) {
+        grant = check ? check.grant : lecture;
+      } else {
+        check = {
+          source,
+          cardStart,
+          start,
+          url: lecture.url,
+          cancelId: lecture.cancelId,
+          generation,
+          requestedAt: now,
+          isAutomaticRetry: failed && !retryFailed,
+        };
+        cancellationChecks.set(id, check);
+        pending.set(id, { check, baseline: { ...lecture } });
+      }
+      if (check && check.grant === undefined) needsHistory = true;
+      if (check?.retryAt) next = Math.min(next, check.retryAt);
+    }
+    button.disabled = !grant;
+    button.classList.toggle("unavailable", !grant);
+    button.classList.toggle("past", Boolean(lecture?.cancelId) && now >= start);
+    button.title = grant
+      ? "Cancel (접수 취소)"
+      : needsHistory
+        ? "접수내역 확인 전에는 취소할 수 없습니다"
+        : "Cancel unavailable (접수 취소 불가)";
+    if (button === clickedButton) selectedGrant = grant;
+  }
+  if (Number.isFinite(next)) {
+    cancellationTimer = setTimeout(
+      refreshCancellationButtons,
+      Math.min(next - now, 2 ** 31 - 1),
+    );
+  }
+  if (pending.size) {
+    verifyCancellationRows(pending).finally(() => refreshCancellationButtons());
+  }
+  return selectedGrant;
+}
+
+function attachExportAction(card, selector, exportLecture) {
+  const button = card.querySelector(selector);
+  const id = card.dataset.lectureId;
+  const key = selector + ":" + id;
+  button.disabled = pendingExports.has(key);
+  button.addEventListener("click", async () => {
+    if (!card.isConnected || pendingExports.has(key)) return;
+    pendingExports.add(key);
+    button.disabled = true;
+    try {
+      await exportLecture();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      pendingExports.delete(key);
+      button.disabled = false;
+      if (!card.isConnected) {
+        const replacement = document.querySelector(
+          `#history-calendar .calendar-lecture[data-lecture-id="${CSS.escape(id)}"] ${selector}`,
+        );
+        if (replacement) replacement.disabled = false;
+      }
+    }
+  });
+}
+
 function attachCalendarLectureActions(ev, lecture) {
   if (ev.dataset.actionsAttached === "true") {
     return;
   }
 
-  const exportBtn = ev.querySelector(".export-btn");
-  exportBtn.addEventListener("click", async () => {
-    exportBtn.disabled = true;
-    try {
-      const latestLecture = await getCalendarLectureForAction(ev, lecture);
-      const icsContent = generateICS(latestLecture);
-      const blob = new Blob([icsContent], { type: "text/calendar" });
-      const downloadLink = document.createElement("a");
-      downloadLink.href = URL.createObjectURL(blob);
-      downloadLink.download = `${latestLecture.title.replace(/\s+/g, "_")}.ics`;
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      document.body.removeChild(downloadLink);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      exportBtn.disabled = false;
-    }
+  attachExportAction(ev, ".export-btn", async () => {
+    const latestLecture = await getCalendarLectureForAction(ev, lecture);
+    const icsContent = generateICS(latestLecture);
+    const blob = new Blob([icsContent], { type: "text/calendar" });
+    const downloadLink = document.createElement("a");
+    downloadLink.href = URL.createObjectURL(blob);
+    downloadLink.download = `${latestLecture.title.replace(/\s+/g, "_")}.ics`;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
   });
 
-  const gcalBtn = ev.querySelector(".gcal-btn");
-  gcalBtn.addEventListener("click", async () => {
+  attachExportAction(ev, ".gcal-btn", async () => {
     const calendarWindow = window.open("", "_blank");
-    gcalBtn.disabled = true;
     try {
       const latestLecture = await getCalendarLectureForAction(ev, lecture);
       const googleCalendarURL = generateGoogleCalendarURL(latestLecture);
@@ -453,23 +851,30 @@ function attachCalendarLectureActions(ev, lecture) {
       if (calendarWindow) {
         calendarWindow.close();
       }
-      console.error(error);
-    } finally {
-      gcalBtn.disabled = false;
+      throw error;
     }
   });
 
   const cancelBtn = ev.querySelector(".cancel-btn");
-  if (!cancelBtn.disabled && lecture.startAt >= new Date()) {
-    cancelBtn.addEventListener("click", () => {
-      cancelApply(lecture.cancelId, lecture.lectureId, lecture.cancelGubun);
-    });
-  }
+  cancelBtn.addEventListener("click", () => {
+    // Timers can be delayed in background tabs and during a native confirmation dialog.
+    const currentGrant = () => refreshCancellationButtons(false, cancelBtn);
+    const grant = currentGrant();
+    if (grant) {
+      const { cancelId, lectureId, cancelGubun } = grant;
+      cancelApply(cancelId, lectureId, cancelGubun, () => {
+        const current = currentGrant();
+        return (
+          current?.cancelId === cancelId && current.cancelGubun === cancelGubun
+        );
+      });
+    }
+  });
 
   ev.dataset.actionsAttached = "true";
 }
 
-function cancelApply(cancelId, qustnrSn, gubun = "mentoLec") {
+function cancelApply(cancelId, qustnrSn, gubun = "mentoLec", stillAllowed) {
   if (!cancelId || !qustnrSn) {
     alert("취소할 수 없는 항목입니다.");
     return;
@@ -481,6 +886,12 @@ function cancelApply(cancelId, qustnrSn, gubun = "mentoLec") {
   }
 
   if (confirm("선택된 항목의 접수를 취소 하시겠습니까?")) {
+    if (stillAllowed && !stillAllowed()) {
+      alert(
+        "취소 요청을 보내지 않았습니다. 취소 버튼 상태를 확인한 뒤 다시 시도해주세요.",
+      );
+      return;
+    }
     fetch(`${Utils.getCenterPathPrefix()}/sw/mypage/userAnswer/cancel.json`, {
       method: "POST",
       headers: {
@@ -521,67 +932,128 @@ function getLectureByUrl(url) {
 
 function updateCalendarLectureRender(
   wrapper,
-  today,
   ev,
-  previousDateKey,
-  previousStartAt,
-  previousEndAt,
+  generation,
   eventDetails,
+  fromAction = false,
 ) {
+  const id = ev.dataset.lectureId;
+  if (
+    generation !== Cache.historyGeneration ||
+    (!ev.isConnected && !wrapper?.isConnected) ||
+    !lectures.some((item) => Cache.getLectureRecordId(item) === id)
+  ) {
+    return null;
+  }
   lectures = Service.updateLectures(lectures, [eventDetails]);
-  const lecture = getLectureByUrl(eventDetails.url) || eventDetails;
-  if (!lecture.startAt || !lecture.endAt) {
-    renderCalendarLecture(ev, lecture);
-    return;
+  const lecture = lectures.find(
+    (item) => Cache.getLectureRecordId(item) === id,
+  );
+  const findCard = () =>
+    ev.isConnected
+      ? ev
+      : wrapper?.querySelector(
+          `.calendar-lecture[data-lecture-id="${CSS.escape(id)}"]`,
+        );
+  const currentCard = findCard();
+  const previousCard = currentCard ?? ev;
+  const keepPartial =
+    previousCard.dataset.detailLoadFailed ||
+    (fromAction &&
+      (previousCard.querySelector('[data-role="location"]')?.innerText ===
+        "장소 로딩중.." ||
+        previousCard.querySelector('[data-role="people"]')?.innerText ===
+          "인원수 로딩중.."));
+  if (
+    currentCard &&
+    (!wrapper?.isConnected ||
+      (Number(currentCard.dataset.startAt) === lecture.startAt.getTime() &&
+        Number(currentCard.dataset.endAt) === lecture.endAt.getTime()))
+  ) {
+    renderCalendarLecture(currentCard, lecture);
+  } else {
+    refreshVisibleCalendarCells(wrapper, new Date(), [lecture], [lecture]);
   }
-
-  const nextDateKey = formatDateKey(lecture.startAt);
-  const hasScheduleChange =
-    previousDateKey !== nextDateKey ||
-    previousStartAt !== lecture.startAt.getTime() ||
-    previousEndAt !== lecture.endAt.getTime();
-
-  if (hasScheduleChange && wrapper) {
-    refreshVisibleCalendarCells(
-      wrapper,
-      today,
-      [lecture],
-      [previousDateKey],
-      [lecture],
-    );
-    return;
-  }
-
-  renderCalendarLecture(ev, lecture);
+  // An export can complete before the display fields have finished loading.
+  if (keepPartial) renderCachedCalendarFields(findCard(), true);
+  return lecture;
 }
 
 async function getCalendarLectureForAction(ev, lecture) {
   const wrapper = document.getElementById("history-calendar");
-  const today = new Date();
-  const previousDateKey = formatDateKey(lecture.startAt);
-  const previousStartAt = lecture.startAt.getTime();
-  const previousEndAt = lecture.endAt.getTime();
-  const eventDetails = await Service.getLectureDetail(lecture.url, {
-    requiredFields: CALENDAR_ACTION_DETAIL_FIELDS,
-  });
-
-  if (ev.isConnected) {
-    updateCalendarLectureRender(
-      wrapper,
-      today,
-      ev,
-      previousDateKey,
-      previousStartAt,
-      previousEndAt,
-      eventDetails,
-    );
+  const generation = Cache.historyGeneration;
+  let eventDetails;
+  try {
+    eventDetails = await Service.getLectureDetail(lecture.url, {
+      requiredFields: CALENDAR_ACTION_DETAIL_FIELDS,
+    });
+  } catch (error) {
+    const card = getLectureByUrl(lecture.url) || lecture;
+    if (card.title && card.startAt?.getTime() < card.endAt?.getTime()) {
+      return card;
+    }
+    throw error;
   }
 
-  return getLectureByUrl(lecture.url) || eventDetails;
+  const rendered = updateCalendarLectureRender(
+    wrapper,
+    ev,
+    generation,
+    eventDetails,
+    true,
+  );
+  if (rendered) return rendered;
+
+  // A removed registration can still finish its export without rejoining the grid.
+  const [latest] = Service.updateLectures(
+    [getLectureByUrl(lecture.url) || lecture],
+    [eventDetails],
+  );
+  return latest;
 }
 
-async function updateCalendarLectureElement(ev, wrapper, today) {
-  if (!ev.isConnected) {
+function renderCachedCalendarFields(ev, afterSuccess = false, availableFields) {
+  if (!ev?.isConnected) return;
+  const id = ev.dataset.lectureId;
+  if (!lectures.some((item) => Cache.getLectureRecordId(item) === id)) return;
+  const location = ev.querySelector('[data-role="location"]');
+  const needsLocation = afterSuccess || location?.innerText === "장소 로딩중..";
+  const needsPeople =
+    afterSuccess ||
+    ev.querySelector('[data-role="people"]')?.innerText === "인원수 로딩중..";
+  if (!needsLocation && !needsPeople) return;
+  const displayFields = [
+    "location",
+    "capacityText",
+    "appliedCount",
+    "totalCount",
+    "isApproved",
+  ];
+  const fields =
+    availableFields ?? Cache.getFreshLectureFieldValues(id, displayFields);
+  if (
+    afterSuccess &&
+    displayFields.every((field) => fields[field] !== undefined)
+  ) {
+    delete ev.dataset.detailLoadFailed;
+  } else {
+    ev.dataset.detailLoadFailed = "true";
+  }
+  if (needsLocation) {
+    location.innerText = calendarLocationText(fields.location);
+  }
+  if (needsPeople)
+    renderCalendarPeople(ev, fields, fields.isApproved !== undefined);
+}
+
+async function updateCalendarLectureElement(ev, wrapper) {
+  const generation = Cache.historyGeneration;
+  const displayedGeneration = wrapper?.dataset?.historyGeneration;
+  if (
+    !ev.isConnected ||
+    (displayedGeneration !== undefined &&
+      Number(displayedGeneration) !== generation)
+  ) {
     return;
   }
 
@@ -592,9 +1064,6 @@ async function updateCalendarLectureElement(ev, wrapper, today) {
   }
 
   attachCalendarLectureActions(ev, lecture);
-  const previousDateKey = formatDateKey(lecture.startAt);
-  const previousStartAt = lecture.startAt.getTime();
-  const previousEndAt = lecture.endAt.getTime();
 
   try {
     const requiredFields = Utils.isBeforeCurrentWeek(lecture)
@@ -604,6 +1073,7 @@ async function updateCalendarLectureElement(ev, wrapper, today) {
       requiredFields,
     });
     if (
+      generation === Cache.historyGeneration &&
       requiredFields === CALENDAR_BASE_DETAIL_FIELDS &&
       !Utils.isBeforeCurrentWeek(eventDetails)
     ) {
@@ -611,27 +1081,52 @@ async function updateCalendarLectureElement(ev, wrapper, today) {
         requiredFields: CALENDAR_CURRENT_DETAIL_FIELDS,
       });
     }
-    if (!ev.isConnected) {
-      return;
-    }
-    updateCalendarLectureRender(
-      wrapper,
-      today,
-      ev,
-      previousDateKey,
-      previousStartAt,
-      previousEndAt,
-      eventDetails,
-    );
+    updateCalendarLectureRender(wrapper, ev, generation, eventDetails);
   } catch (error) {
-    console.error(error);
+    if (generation === Cache.historyGeneration) {
+      renderCachedCalendarFields(ev);
+      console.error(error);
+    }
+  }
+  if (
+    generation !== Cache.historyGeneration &&
+    ev.isConnected &&
+    ev.querySelector('[data-role="location"]')?.innerText === "장소 로딩중.."
+  ) {
+    await updateCalendarLectureElement(ev, wrapper);
+  }
+}
+
+const calendarDetailWaiters = [];
+const calendarCardLoads = new WeakMap();
+let activeCalendarDetails = 0;
+
+async function loadCalendarCard(ev, wrapper) {
+  if (activeCalendarDetails < LECTURE_DETAIL_CONCURRENCY_LIMIT) {
+    activeCalendarDetails++;
+  } else {
+    await new Promise((resolve) => calendarDetailWaiters.push(resolve));
+  }
+  try {
+    // Another response may already have painted this card while it waited.
+    if (
+      ev.isConnected &&
+      (ev.querySelector('[data-role="location"]')?.innerText ===
+        "장소 로딩중.." ||
+        ev.dataset.detailLoadFailed)
+    ) {
+      await updateCalendarLectureElement(ev, wrapper);
+    }
+  } finally {
+    const next = calendarDetailWaiters.shift();
+    if (next) next();
+    else activeCalendarDetails--;
   }
 }
 
 async function updateCalendarElement(
   eventElems,
   wrapper = document.getElementById("history-calendar"),
-  today = new Date(),
 ) {
   const allEventElems = Array.from(
     eventElems ?? document.querySelectorAll("div.calendar-lecture"),
@@ -647,10 +1142,17 @@ async function updateCalendarElement(
     (ev) =>
       ev.querySelector('[data-role="location"]')?.innerText === "장소 로딩중..",
   );
-  await Utils.mapWithConcurrency(
-    targetEventElems,
-    LECTURE_DETAIL_CONCURRENCY_LIMIT,
-    (ev) => updateCalendarLectureElement(ev, wrapper, today),
+  refreshCancellationButtons();
+  await Promise.all(
+    targetEventElems.map((ev) => {
+      if (!calendarCardLoads.has(ev)) {
+        const load = loadCalendarCard(ev, wrapper).finally(() =>
+          calendarCardLoads.delete(ev),
+        );
+        calendarCardLoads.set(ev, load);
+      }
+      return calendarCardLoads.get(ev);
+    }),
   );
 }
 
@@ -697,8 +1199,12 @@ END:VCALENDAR`.replace(/\n/g, "\r\n");
 }
 
 main()
-  .then(() => {
-    return updateCalendarElement();
+  .then((wrapper) => {
+    if (wrapper)
+      return updateCalendarElement(
+        wrapper.querySelectorAll(".calendar-lecture"),
+        wrapper,
+      );
   })
   .catch((err) => {
     console.error(err);

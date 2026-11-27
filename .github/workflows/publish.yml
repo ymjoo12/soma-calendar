@@ -10,38 +10,39 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: write
+permissions: {} # build job에만 별도로 `contents: write` 권한 부여
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ inputs.release_tag || github.event.release.tag_name }}
     outputs:
       version: ${{ steps.release.outputs.version }}
       release_notes: ${{ steps.release.outputs.release_notes }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.release_tag) || github.sha }}
+          persist-credentials: false
 
       - name: Resolve release metadata
         id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          if [ -n "$INPUT_RELEASE_TAG" ]; then
-            VERSION="$INPUT_RELEASE_TAG"
-          else
-            VERSION="${{ github.event.release.tag_name }}"
-          fi
-          NOTES="$(gh release view "$VERSION" --json body --jq '.body')"
+          NOTES="$(gh release view --json body --jq '.body' -- "$VERSION")"
           if [ -z "$NOTES" ]; then
             NOTES="Release $VERSION"
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          delimiter="$(openssl rand -hex 16)"
           {
-            echo "release_notes<<EOF"
-            echo "$NOTES"
-            echo "EOF"
+            echo "release_notes<<$delimiter"
+            printf '%s\n' "$NOTES"
+            echo "$delimiter"
           } >> "$GITHUB_OUTPUT"
 
       - name: Build zip
@@ -57,10 +58,10 @@ jobs:
       - name: Upload zip to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ steps.release.outputs.version }}" extension.zip --clobber
+        run: gh release upload --clobber -- "$VERSION" extension.zip
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: extension-${{ steps.release.outputs.version }}
           path: extension.zip
@@ -70,30 +71,31 @@ jobs:
     runs-on: ubuntu-latest
     if: vars.CHROME_PUBLISH_ENABLED == 'true'
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: extension-${{ needs.build.outputs.version || github.ref_name }}
 
       - name: Publish to Chrome Web Store
-        uses: browser-actions/release-chrome-extension@v0.2.1
+        uses: hamzahamidi/publish-to-chrome-web-store@v1
         with:
-          extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
-          extension-path: extension.zip
-          oauth-client-id: ${{ secrets.CHROME_CLIENT_ID }}
-          oauth-client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
-          oauth-refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          publisher-id: ${{ vars.CHROME_PUBLISHER_ID }}
+          item-id: ${{ secrets.CHROME_EXTENSION_ID }}
+          zip: extension.zip
+          client-id: ${{ secrets.CHROME_CLIENT_ID }}
+          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
 
   firefox:
     needs: build
     runs-on: ubuntu-latest
     if: vars.FIREFOX_PUBLISH_ENABLED == 'true'
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: extension-${{ needs.build.outputs.version || github.ref_name }}
 
       - name: Publish to Firefox Add-ons
-        uses: browser-actions/release-firefox-addon@v0.2.1
+        uses: browser-actions/release-firefox-addon@v0
         with:
           addon-id: ${{ secrets.FIREFOX_ADDON_ID }}
           addon-path: extension.zip

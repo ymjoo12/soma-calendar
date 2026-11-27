@@ -1,6 +1,9 @@
 /* Calendar styling */
 #history-calendar {
   overflow-x: auto;
+  inline-size: 100%;
+  max-inline-size: 100vi;
+  box-sizing: border-box;
   border: 1px solid #ddd;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -34,6 +37,10 @@
 /* Past weeks button */
 .past-btn-cell {
   grid-column: 1 / -1;
+  position: sticky;
+  inset-inline-start: 0;
+  max-inline-size: 100%;
+  box-sizing: border-box;
   display: flex;
   gap: 1px;
 }

@@ -3,6 +3,8 @@ const Cache = (() => {
   const LECTURE_ORDER_CACHE_PREFIX = "soma-lecture-order:";
   const LECTURE_PAST_STATE_PREFIX = "soma-lecture-past-state:";
   const LECTURE_HISTORY_STATE_PREFIX = "soma-lecture-history-state:";
+  // Older scans could mark a truncated registration order as complete.
+  const HISTORY_STATE_VERSION = `${LECTURE_CACHE_VERSION}:2`;
   const LECTURE_ORDER_HISTORY_LATEST = "history-latest";
   const LEGACY_CACHE_PREFIXES = [
     "soma-lecture-detail:",
@@ -17,6 +19,23 @@ const Cache = (() => {
   const lectureRecordMemory = new Map();
   const lectureObjectMemory = new Map();
   const lectureDetailRequests = new Map();
+  let historyGeneration = 0;
+  const nullableLectureFields = new Set([
+    "cancelId",
+    "cancelGubun",
+    "location",
+    "isOnline",
+    "capacityText",
+    "totalCount",
+    "appliedCount",
+  ]);
+
+  function hasLectureFieldValue(field, value) {
+    return (
+      value !== undefined &&
+      (value !== null || nullableLectureFields.has(field))
+    );
+  }
 
   // Cache keys
   function getLectureDetailCacheKey(url) {
@@ -146,7 +165,7 @@ const Cache = (() => {
     }
 
     for (const [field, value] of Object.entries(record.fields)) {
-      if (value !== undefined && value !== null) {
+      if (hasLectureFieldValue(field, value)) {
         lecture[field] = value;
       }
     }
@@ -185,6 +204,20 @@ const Cache = (() => {
     return startAt ? startAt < Utils.getTodayStartDate() : false;
   }
 
+  function hasLectureScheduleChanged(before, after) {
+    if (
+      before.dateStr === after.dateStr &&
+      before.timeRangeStr === after.timeRangeStr
+    ) {
+      return false;
+    }
+    return (
+      getLectureStartAt(before)?.getTime() !==
+        getLectureStartAt(after)?.getTime() ||
+      getLectureEndAt(before)?.getTime() !== getLectureEndAt(after)?.getTime()
+    );
+  }
+
   function getLectureFieldTtl(fields, field) {
     if (isPastLectureFields(fields)) {
       return LECTURE_PAST_CACHE_TTL_MS;
@@ -193,10 +226,13 @@ const Cache = (() => {
   }
 
   function hasLectureFields(record, fields) {
-    return fields.every(
-      (field) =>
-        record.fields[field] !== undefined && record.fields[field] !== null,
-    );
+    return fields.every((field) => {
+      const value = record.fields[field];
+      // A missing delivery method clears the last classification and needs a retry.
+      return field === "isOnline"
+        ? typeof value === "boolean"
+        : hasLectureFieldValue(field, value);
+    });
   }
 
   function hasFreshLectureFields(record, fields) {
@@ -217,7 +253,7 @@ const Cache = (() => {
   function pickLectureFields(lecture) {
     const fields = {};
     for (const field of LECTURE_RECORD_FIELDS) {
-      if (lecture[field] !== undefined && lecture[field] !== null) {
+      if (hasLectureFieldValue(field, lecture[field])) {
         fields[field] = lecture[field];
       }
     }
@@ -227,14 +263,10 @@ const Cache = (() => {
   function getLectureOrderEntry(lecture) {
     const id =
       typeof lecture === "string" ? lecture : getLectureRecordId(lecture);
-    const record = readLectureRecord(id);
     const fields =
-      typeof lecture === "string"
-        ? { ...(record?.fields ?? {}) }
-        : {
-            ...(record?.fields ?? {}),
-            ...pickLectureFields({ ...lecture, lectureId: id }),
-          };
+      lecture.dateStr != null && lecture.timeRangeStr != null
+        ? lecture
+        : { ...readLectureRecord(id)?.fields, ...pickLectureFields(lecture) };
     const startAt = getLectureStartAt(fields);
     const endAt = getLectureEndAt(fields);
 
@@ -247,19 +279,57 @@ const Cache = (() => {
     };
   }
 
-  function writeLectureRecord(lecture) {
+  function writeLectureRecord(lecture, requestBaseline) {
     const id = getLectureRecordId(lecture);
     const currentRecord = readLectureRecord(id);
+    const previous = currentRecord?.fields ?? {};
     const now = Date.now();
     const incomingFields = pickLectureFields({ ...lecture, lectureId: id });
-    const fields = {
-      ...(currentRecord?.fields ?? {}),
-      ...incomingFields,
-    };
+    if (requestBaseline !== undefined && currentRecord) {
+      const baseline = requestBaseline?.fields ?? {};
+      const scheduleChanged = hasLectureScheduleChanged(baseline, previous);
+      const changedSinceRequest = (field) => {
+        if (field === "dateStr" || field === "timeRangeStr")
+          return scheduleChanged;
+        if (field === "timeStr") {
+          // Keep newer raw text if this response has no parseable schedule.
+          return (
+            scheduleChanged ||
+            (!incomingFields.dateStr && previous.timeStr !== baseline.timeStr)
+          );
+        }
+        return previous[field] !== baseline[field];
+      };
+      // Preserve the whole group if a newer observation changed any member.
+      for (const group of [
+        ["deliveryMethod", "isOnline"],
+        ["capacityText", "totalCount"],
+      ]) {
+        if (group.some(changedSinceRequest)) {
+          for (const field of group) delete incomingFields[field];
+        }
+      }
+      for (const field of Object.keys(incomingFields)) {
+        if (changedSinceRequest(field)) delete incomingFields[field];
+      }
+    }
+    const fields = { ...previous, ...incomingFields };
     const fieldSavedAt = { ...(currentRecord?.fieldSavedAt ?? {}) };
 
     for (const field of Object.keys(incomingFields)) {
       fieldSavedAt[field] = now;
+    }
+    // History can reschedule a lecture without supplying the detail popup's time text.
+    const { dateStr, timeRangeStr } = fields;
+    const needsPopupTime = previous.timeStr
+      ? hasLectureScheduleChanged(previous, fields)
+      : !!lecture.timeStr;
+    if (needsPopupTime && !incomingFields.timeStr && dateStr && timeRangeStr) {
+      fields.timeStr = `${dateStr} ${timeRangeStr}`;
+      fieldSavedAt.timeStr = Math.max(
+        fieldSavedAt.dateStr,
+        fieldSavedAt.timeRangeStr,
+      );
     }
 
     const nextRecord = {
@@ -301,6 +371,18 @@ const Cache = (() => {
       getLectureDetailCacheKey(url),
       requiredFields,
     );
+  }
+
+  function getFreshLectureFieldValues(id, fields) {
+    const record = readLectureRecord(id);
+    const values = {};
+    if (record) {
+      for (const field of fields) {
+        if (hasFreshLectureFields(record, [field]))
+          values[field] = record.fields[field];
+      }
+    }
+    return values;
   }
 
   function getCachedPastLectureFields(url, requiredFields) {
@@ -366,11 +448,13 @@ const Cache = (() => {
       return null;
     }
 
-    const currentEntry = getLectureOrderEntry(id);
+    const storedFields =
+      entry.dateStr == null || entry.timeRangeStr == null
+        ? readLectureRecord(id)?.fields
+        : undefined;
     const fields = {
-      ...currentEntry,
-      dateStr: entry.dateStr ?? currentEntry.dateStr,
-      timeRangeStr: entry.timeRangeStr ?? currentEntry.timeRangeStr,
+      dateStr: entry.dateStr ?? storedFields?.dateStr,
+      timeRangeStr: entry.timeRangeStr ?? storedFields?.timeRangeStr,
     };
     const startAt =
       typeof entry.startAt === "number"
@@ -405,18 +489,19 @@ const Cache = (() => {
     storageKey,
     entries,
     savedAt = Date.now(),
+    previousRaw,
   ) {
     const items = entries.map(normalizeLectureOrderEntry).filter(Boolean);
     try {
-      storage.setItem(
-        storageKey,
-        JSON.stringify({
-          version: LECTURE_CACHE_VERSION,
-          savedAt,
-          ids: items.map((entry) => entry.id),
-          items,
-        }),
-      );
+      const raw = JSON.stringify({
+        version: LECTURE_CACHE_VERSION,
+        savedAt,
+        ids: items.map((entry) => entry.id),
+        items,
+      });
+      if (raw !== previousRaw) {
+        storage.setItem(storageKey, raw);
+      }
     } catch (error) {
       console.error(error);
     }
@@ -459,7 +544,13 @@ const Cache = (() => {
           ...fields,
           lectureId: id,
         });
-        writeLectureOrderCacheByKey(localStorage, key, entries, cached.savedAt);
+        writeLectureOrderCacheByKey(
+          localStorage,
+          key,
+          entries,
+          cached.savedAt,
+          raw,
+        );
       } catch (error) {
         console.error(error);
       }
@@ -520,8 +611,7 @@ const Cache = (() => {
     writeHistoryLectureState(path, false);
   }
 
-  function mergeHistoryOrderWithPage(path, page, lectures) {
-    const pageStartIndex = (Number(page) - 1) * LECTURE_HISTORY_PAGE_SIZE;
+  function mergeHistoryOrderWithPage(path, lectures, pageStartIndex) {
     const pageEntries = lectures.map(getLectureOrderEntry);
     const pageIds = pageEntries.map((entry) => entry.id);
     const orderEntries =
@@ -543,7 +633,7 @@ const Cache = (() => {
       (entry) => !pageIdSet.has(entry.id),
     );
 
-    nextOrderEntries.splice(pageStartIndex, pageIds.length, ...pageEntries);
+    nextOrderEntries.splice(pageStartIndex, 0, ...pageEntries);
     writeLectureOrder(
       path,
       LECTURE_ORDER_HISTORY_LATEST,
@@ -569,7 +659,12 @@ const Cache = (() => {
     );
   }
 
-  function writeHistoryPageCache(path, page, lectures) {
+  function writeHistoryPageCache(
+    path,
+    page,
+    lectures,
+    previousLectureCount = 0,
+  ) {
     writeLectureRecords(lectures);
 
     if (String(page) === PAGE_ONE) {
@@ -577,7 +672,7 @@ const Cache = (() => {
       return;
     }
 
-    mergeHistoryOrderWithPage(path, page, lectures);
+    mergeHistoryOrderWithPage(path, lectures, previousLectureCount);
   }
 
   // Past lectures
@@ -616,7 +711,7 @@ const Cache = (() => {
 
       const cached = JSON.parse(raw);
       if (
-        cached.version !== LECTURE_CACHE_VERSION ||
+        cached.version !== HISTORY_STATE_VERSION ||
         typeof cached.savedAt !== "number" ||
         Date.now() - cached.savedAt > LECTURE_PAST_CACHE_TTL_MS
       ) {
@@ -653,7 +748,7 @@ const Cache = (() => {
       localStorage.setItem(
         getLectureHistoryStateKey(path),
         JSON.stringify({
-          version: LECTURE_CACHE_VERSION,
+          version: HISTORY_STATE_VERSION,
           savedAt: Date.now(),
           complete,
         }),
@@ -707,20 +802,6 @@ const Cache = (() => {
     );
   }
 
-  function writePastLectureCache(path, lectures, complete = false) {
-    const pastLectures = lectures.filter((lecture) =>
-      isPastLectureFields(lecture),
-    );
-    if (pastLectures.length === 0) {
-      return;
-    }
-
-    writeLectureRecords(pastLectures);
-    if (complete) {
-      writePastLectureState(path, true);
-    }
-  }
-
   function markPastLectureCacheComplete(path) {
     writePastLectureState(path, true);
   }
@@ -733,8 +814,10 @@ const Cache = (() => {
     writeHistoryLectureState(path, true);
   }
 
-  function updateLectureCache(lecture) {
-    return getLectureObjectFromRecord(writeLectureRecord(lecture));
+  function updateLectureCache(lecture, requestBaseline) {
+    return getLectureObjectFromRecord(
+      writeLectureRecord(lecture, requestBaseline),
+    );
   }
 
   // Cached requests
@@ -743,8 +826,11 @@ const Cache = (() => {
       return lectureDetailRequests.get(key);
     }
 
-    const request = createRequest().finally(() => {
-      lectureDetailRequests.delete(key);
+    const isCurrent = () => lectureDetailRequests.get(key) === request;
+    // The preceding TTL check already loaded the record into memory.
+    const baseline = lectureRecordMemory.get(key) ?? null;
+    const request = createRequest(isCurrent, baseline).finally(() => {
+      if (isCurrent()) lectureDetailRequests.delete(key);
     });
 
     lectureDetailRequests.set(key, request);
@@ -762,6 +848,7 @@ const Cache = (() => {
   }
 
   function clearAllLectureCache() {
+    historyGeneration++;
     const prefixes = [
       LECTURE_RECORD_CACHE_PREFIX,
       LECTURE_ORDER_CACHE_PREFIX,
@@ -778,9 +865,13 @@ const Cache = (() => {
     } catch (error) {
       console.error(error);
     }
+    globalThis.document?.dispatchEvent?.(
+      new Event("soma-lecture-cache-cleared"),
+    );
   }
 
   function clearHistorySessionCache() {
+    historyGeneration++;
     const prefixes = [
       LECTURE_RECORD_CACHE_PREFIX,
       LECTURE_ORDER_CACHE_PREFIX,
@@ -789,6 +880,7 @@ const Cache = (() => {
     try {
       lectureRecordMemory.clear();
       lectureObjectMemory.clear();
+      lectureDetailRequests.clear();
       removeCacheKeysByPrefix(sessionStorage, prefixes);
     } catch (error) {
       console.error(error);
@@ -808,6 +900,9 @@ const Cache = (() => {
   }
 
   return {
+    get historyGeneration() {
+      return historyGeneration;
+    },
     clearAllLectureCache,
     clearHistorySessionCache,
     getCachedCalendarLectureIds,
@@ -815,6 +910,7 @@ const Cache = (() => {
     getCachedHistoryLectureEntries,
     getCachedHistoryLectureIds,
     getCachedLectureFields,
+    getFreshLectureFieldValues,
     getCachedPastLectureFields,
     getCachedPastLectures,
     getLectureDetailCacheKey,
@@ -829,6 +925,5 @@ const Cache = (() => {
     removeHistoryLectureIds,
     updateLectureCache,
     writeHistoryPageCache,
-    writePastLectureCache,
   };
 })();
