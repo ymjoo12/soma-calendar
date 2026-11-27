@@ -394,48 +394,95 @@ function createPastButton(wrapper) {
   return cell;
 }
 
-async function loadRemainingCalendarLectures(calendarLectures, wrapper) {
-  while (calendarLectures.loadPastLectures) {
-    const generation = Cache.historyGeneration;
-    const isCurrent = await calendarLectures.loadPastLectures(
-      (pageLectures, previousLectures = [], removedIds) => {
-        if (removedIds?.size) {
-          lectures = lectures.filter(
-            (lecture) => !removedIds.has(Cache.getLectureRecordId(lecture)),
-          );
-        }
-        lectures = Service.updateLectures(lectures, pageLectures);
-        refreshVisibleCalendarCells(wrapper, new Date(), [
-          ...previousLectures,
-          ...pageLectures,
-        ]);
-      },
-    );
-    if (isCurrent) return;
+function observeCalendarHistory(wrapper, initial) {
+  let generation = initial.cacheGeneration;
+  let loading = false;
+  wrapper.dataset.historyGeneration = generation;
 
-    calendarLectures = await Service.getCalendarLectures(
-      Utils.getCurrentWeekStartDate(),
-      generation !== Cache.historyGeneration,
-    );
-    lectures = calendarLectures.lectures;
-    unverifiedIds = calendarLectures.unverifiedIds;
-    refreshVisibleCalendarCells(wrapper, new Date());
+  function applyPage(pageLectures, previousLectures = [], removedIds) {
+    if (removedIds?.size) {
+      lectures = lectures.filter(
+        (lecture) => !removedIds.has(Cache.getLectureRecordId(lecture)),
+      );
+    }
+    lectures = Service.updateLectures(lectures, pageLectures);
+    refreshVisibleCalendarCells(wrapper, new Date(), [
+      ...previousLectures,
+      ...pageLectures,
+    ]);
   }
+
+  async function load(snapshot) {
+    loading = true;
+    try {
+      while (wrapper.isConnected) {
+        if (snapshot?.cacheGeneration === Cache.historyGeneration) {
+          generation = snapshot.cacheGeneration;
+          if (
+            !snapshot.loadPastLectures ||
+            (await snapshot.loadPastLectures(applyPage))
+          ) {
+            return;
+          }
+        }
+
+        const cleared = generation !== Cache.historyGeneration;
+        if (cleared && document.hidden) return;
+        generation = Cache.historyGeneration;
+        snapshot = await Service.getCalendarLectures(
+          Utils.getCurrentWeekStartDate(),
+          cleared,
+        );
+        if (
+          !wrapper.isConnected ||
+          snapshot.cacheGeneration !== Cache.historyGeneration
+        ) {
+          continue;
+        }
+        wrapper.dataset.historyGeneration = snapshot.cacheGeneration;
+        lectures = snapshot.lectures;
+        unverifiedIds = snapshot.unverifiedIds;
+        refreshVisibleCalendarCells(wrapper, new Date());
+      }
+    } catch (error) {
+      // The current attempt failed. Another explicit clear can start a fresh scan.
+      generation = Cache.historyGeneration;
+      if (Number(wrapper.dataset.historyGeneration) !== generation) {
+        for (const card of wrapper.querySelectorAll(".calendar-lecture")) {
+          renderCachedCalendarFields(card, false, {});
+        }
+      }
+      console.error(error);
+    } finally {
+      loading = false;
+      refreshIfCleared();
+    }
+  }
+
+  function refreshIfCleared() {
+    if (!wrapper.isConnected || generation === Cache.historyGeneration) return;
+    unverifiedIds = new Set(lectures.map(Cache.getLectureRecordId));
+    if (document.hidden) return;
+    refreshCancellationButtons();
+    if (!loading) load();
+  }
+
+  document.addEventListener("soma-lecture-cache-cleared", refreshIfCleared);
+  document.addEventListener("visibilitychange", refreshIfCleared);
+  window.addEventListener("pageshow", refreshIfCleared);
+  if (generation === Cache.historyGeneration) load(initial);
+  else refreshIfCleared();
 }
 
-async function generateCalendarElement() {
-  const startDate = Utils.getCurrentWeekStartDate();
+function generateCalendarElement(calendarLectures) {
   const wrapper = document.createElement("div");
   wrapper.id = "history-calendar";
 
-  const calendarLectures = await Service.getCalendarLectures(startDate);
   lectures = calendarLectures.lectures;
   unverifiedIds = calendarLectures.unverifiedIds;
 
   wrapper.appendChild(createPastButton(wrapper));
   setCalendarRange(wrapper, new Date(), 0);
-  loadRemainingCalendarLectures(calendarLectures, wrapper).catch(console.error);
-
   return wrapper;
 }
 
@@ -446,8 +493,12 @@ async function main() {
     document.querySelector("#contentsList > div > div > ul.tabs-st1.col3");
   if (!target) return;
 
-  const newElement = await generateCalendarElement();
+  const calendarLectures = await Service.getCalendarLectures(
+    Utils.getCurrentWeekStartDate(),
+  );
+  const newElement = generateCalendarElement(calendarLectures);
   target.after(newElement);
+  observeCalendarHistory(newElement, calendarLectures);
   const retryCancellationChecks = () => refreshCancellationButtons(true);
   document.addEventListener("visibilitychange", retryCancellationChecks);
   window.addEventListener("pageshow", retryCancellationChecks);
@@ -961,7 +1012,7 @@ async function getCalendarLectureForAction(ev, lecture) {
   return latest;
 }
 
-function renderCachedCalendarFields(ev, afterSuccess = false) {
+function renderCachedCalendarFields(ev, afterSuccess = false, availableFields) {
   if (!ev?.isConnected) return;
   const id = ev.dataset.lectureId;
   if (!lectures.some((item) => Cache.getLectureRecordId(item) === id)) return;
@@ -978,7 +1029,8 @@ function renderCachedCalendarFields(ev, afterSuccess = false) {
     "totalCount",
     "isApproved",
   ];
-  const fields = Cache.getFreshLectureFieldValues(id, displayFields);
+  const fields =
+    availableFields ?? Cache.getFreshLectureFieldValues(id, displayFields);
   if (
     afterSuccess &&
     displayFields.every((field) => fields[field] !== undefined)
@@ -995,7 +1047,13 @@ function renderCachedCalendarFields(ev, afterSuccess = false) {
 }
 
 async function updateCalendarLectureElement(ev, wrapper) {
-  if (!ev.isConnected) {
+  const generation = Cache.historyGeneration;
+  const displayedGeneration = wrapper?.dataset?.historyGeneration;
+  if (
+    !ev.isConnected ||
+    (displayedGeneration !== undefined &&
+      Number(displayedGeneration) !== generation)
+  ) {
     return;
   }
 
@@ -1006,7 +1064,6 @@ async function updateCalendarLectureElement(ev, wrapper) {
   }
 
   attachCalendarLectureActions(ev, lecture);
-  const generation = Cache.historyGeneration;
 
   try {
     const requiredFields = Utils.isBeforeCurrentWeek(lecture)

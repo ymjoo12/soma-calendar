@@ -356,6 +356,7 @@ const Service = (() => {
       Cache.markPastLectureCacheComplete(path);
       Cache.markHistoryLectureCacheComplete(path);
       return {
+        cacheGeneration: Cache.historyGeneration,
         lectures: [],
         unverifiedIds: new Set(),
         loadPastLectures: null,
@@ -397,6 +398,7 @@ const Service = (() => {
     }
 
     return {
+      cacheGeneration: Cache.historyGeneration,
       // This set shrinks as background pages confirm cached registrations.
       unverifiedIds: missingHistoryIds,
       lectures: updateLectures(
