@@ -321,6 +321,14 @@ function setCalendarRange(wrapper, today, pastDays) {
 function createPastButton(wrapper) {
   const cell = document.createElement("div");
   cell.className = "calendar-cell past-btn-cell";
+  // The seven columns may extend past the calendar's visible width.
+  let controlWidth;
+  new ResizeObserver(([entry]) => {
+    if (entry.contentRect.width !== controlWidth) {
+      controlWidth = entry.contentRect.width;
+      cell.style.maxInlineSize = `${controlWidth}px`;
+    }
+  }).observe(wrapper);
 
   const pastBtn = document.createElement("button");
   pastBtn.type = "button";
