@@ -203,6 +203,20 @@ const Cache = (() => {
     return startAt ? startAt < Utils.getTodayStartDate() : false;
   }
 
+  function hasLectureScheduleChanged(before, after) {
+    if (
+      before.dateStr === after.dateStr &&
+      before.timeRangeStr === after.timeRangeStr
+    ) {
+      return false;
+    }
+    return (
+      getLectureStartAt(before)?.getTime() !==
+        getLectureStartAt(after)?.getTime() ||
+      getLectureEndAt(before)?.getTime() !== getLectureEndAt(after)?.getTime()
+    );
+  }
+
   function getLectureFieldTtl(fields, field) {
     if (isPastLectureFields(fields)) {
       return LECTURE_PAST_CACHE_TTL_MS;
@@ -271,14 +285,24 @@ const Cache = (() => {
     const now = Date.now();
     const incomingFields = pickLectureFields({ ...lecture, lectureId: id });
     if (requestBaseline !== undefined && currentRecord) {
-      // Re-reading the same list row also refreshes its timestamp.
-      const changedSinceRequest = (field) =>
-        previous[field] !== requestBaseline?.fields[field];
+      const baseline = requestBaseline?.fields ?? {};
+      const scheduleChanged = hasLectureScheduleChanged(baseline, previous);
+      const changedSinceRequest = (field) => {
+        if (field === "dateStr" || field === "timeRangeStr")
+          return scheduleChanged;
+        if (field === "timeStr") {
+          // Keep newer raw text if this response has no parseable schedule.
+          return (
+            scheduleChanged ||
+            (!incomingFields.dateStr && previous.timeStr !== baseline.timeStr)
+          );
+        }
+        return previous[field] !== baseline[field];
+      };
       // Preserve the whole group if a newer observation changed any member.
       for (const group of [
         ["deliveryMethod", "isOnline"],
         ["capacityText", "totalCount"],
-        ["dateStr", "timeRangeStr", "timeStr"],
       ]) {
         if (group.some(changedSinceRequest)) {
           for (const field of group) delete incomingFields[field];
@@ -296,15 +320,8 @@ const Cache = (() => {
     }
     // History can reschedule a lecture without supplying the detail popup's time text.
     const { dateStr, timeRangeStr } = fields;
-    const scheduleChanged =
-      (dateStr !== previous.dateStr ||
-        timeRangeStr !== previous.timeRangeStr) &&
-      (getLectureStartAt(fields)?.getTime() !==
-        getLectureStartAt(previous)?.getTime() ||
-        getLectureEndAt(fields)?.getTime() !==
-          getLectureEndAt(previous)?.getTime());
     const needsPopupTime = previous.timeStr
-      ? scheduleChanged
+      ? hasLectureScheduleChanged(previous, fields)
       : !!lecture.timeStr;
     if (needsPopupTime && !incomingFields.timeStr && dateStr && timeRangeStr) {
       fields.timeStr = `${dateStr} ${timeRangeStr}`;
