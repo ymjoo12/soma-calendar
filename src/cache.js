@@ -27,6 +27,7 @@ const Cache = (() => {
     "isOnline",
     "capacityText",
     "totalCount",
+    "appliedCount",
   ]);
 
   function hasLectureFieldValue(field, value) {

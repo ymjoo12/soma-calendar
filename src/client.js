@@ -207,11 +207,7 @@ const Client = (() => {
     );
     const capacityText = getTopValue(container, "모집인원");
     const approvedText = getTopValue(container, "개설 승인");
-    const appliedSummary =
-      container
-        .querySelector(".total-normal.mt50")
-        ?.innerText.replace(/\s+/g, " ")
-        .trim() || "";
+    const appliedSummary = container.querySelector(".total-normal.mt50");
     const deliveryMethod = getTopValue(container, "진행방식");
     const timeStr = getTopValue(container, "강의날짜");
     const title = getTopValue(container, "모집 명");
@@ -228,7 +224,9 @@ const Client = (() => {
       capacityText,
       timeStr,
       ...getDetailTimeFields(timeStr),
-      appliedCount: getAppliedCount(appliedSummary),
+      appliedCount: appliedSummary
+        ? getAppliedCount(appliedSummary.innerText)
+        : undefined,
       totalCount:
         capacityText === undefined ? undefined : getPeopleCount(capacityText),
       isApproved: approvedText ? approvedText === "OK" : null,
