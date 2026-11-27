@@ -10,17 +10,20 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: write
+permissions: {} # build job에만 별도로 `contents: write` 권한 부여
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       version: ${{ steps.release.outputs.version }}
       release_notes: ${{ steps.release.outputs.release_notes }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Resolve release metadata
         id: release
