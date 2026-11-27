@@ -157,7 +157,11 @@ const Service = (() => {
     );
   }
 
-  async function readCurrentHistory(readPages, input, retryOrder = true) {
+  async function readCurrentHistory(
+    readPages,
+    input,
+    { retryOrder = true, retryTransient = false } = {},
+  ) {
     const path = Utils.getLectureHistoryPath();
     let retriedGeneration = retryOrder ? null : Cache.historyGeneration;
     // A foreground reader still needs a result if the popup clears its scan.
@@ -169,16 +173,29 @@ const Service = (() => {
       const canRetryOrder = retriedGeneration !== generation;
       const cache = canRetryOrder ? "no-cache" : "no-store";
       try {
-        const requestedAt = Date.now();
-        const firstPage = await Client.fetchLectureHistoryHead(path, 1, cache);
+        let requestedAt = Date.now();
+        // The calendar shares one transient retry across the head and later pages.
+        const scan = { isCurrent, canRetryOrder, cache, retryTransient };
+        const firstPage = await Client.fetchLectureHistoryHead(
+          path,
+          1,
+          cache,
+        ).catch((error) => {
+          if (
+            !scan.retryTransient ||
+            error?.code !== "LECTURE_TRANSIENT" ||
+            !isCurrent()
+          ) {
+            throw error;
+          }
+          scan.retryTransient = false;
+          requestedAt = Date.now();
+          return Client.fetchLectureHistoryHead(path, 1, "no-store");
+        });
         if (!isCurrent()) continue;
         Cache.writeHistoryPageCache(path, PAGE_ONE, firstPage.lectures, 0);
         rememberCancellationPage(firstPage.lectures, 1, requestedAt);
-        const result = await readPages(
-          path,
-          { ...firstPage, isCurrent, canRetryOrder, cache },
-          input,
-        );
+        const result = await readPages(path, { ...firstPage, ...scan }, input);
         if (isCurrent()) return result;
       } catch (error) {
         if (isCurrent()) {
@@ -397,7 +414,7 @@ const Service = (() => {
             cachePastLecturePages(
               path,
               firstPastPage + 1,
-              { ...firstPage, retryTransient: true },
+              { ...firstPage },
               fetchedLectures.length,
               startDate,
               onPage,
@@ -487,7 +504,10 @@ const Service = (() => {
   return {
     getAllLectures: (options) => readCurrentHistory(getAllLectures, options),
     getCalendarLectures: (startDate, retryOrder) =>
-      readCurrentHistory(getCalendarLectures, startDate, retryOrder),
+      readCurrentHistory(getCalendarLectures, startDate, {
+        retryOrder,
+        retryTransient: true,
+      }),
     getLectureDetail,
     getCancellationPage,
     getCurrentCancellations,

@@ -361,6 +361,7 @@ async function main() {
   const target =
     document.querySelector("#contentsList > div > div > ul.tabs-st1.col2") ||
     document.querySelector("#contentsList > div > div > ul.tabs-st1.col3");
+  if (!target) return;
 
   const newElement = await generateCalendarElement();
   target.after(newElement);
@@ -368,6 +369,7 @@ async function main() {
   document.addEventListener("visibilitychange", retryCancellationChecks);
   window.addEventListener("pageshow", retryCancellationChecks);
   window.addEventListener("online", retryCancellationChecks);
+  return newElement;
 }
 
 // Detail rendering
@@ -945,8 +947,12 @@ END:VCALENDAR`.replace(/\n/g, "\r\n");
 }
 
 main()
-  .then(() => {
-    return updateCalendarElement();
+  .then((wrapper) => {
+    if (wrapper)
+      return updateCalendarElement(
+        wrapper.querySelectorAll(".calendar-lecture"),
+        wrapper,
+      );
   })
   .catch((err) => {
     console.error(err);
