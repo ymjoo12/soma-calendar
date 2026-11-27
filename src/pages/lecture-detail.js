@@ -1,7 +1,8 @@
 // Overlap warning
-function warnIfOverlapping(lectures) {
-  const lecturesDictionary =
-    Utils.convertLectureDictionaryWithoutDate(lectures);
+async function warnIfOverlapping() {
+  const lecture = Service.getLectureFromDetailDocument(document);
+  // An incomplete history cannot tell us whether this lecture is already registered.
+  const lectures = await Service.getAllLectures({ allowPartial: false });
   const thisLectureId = Utils.getLectureId(location.href);
   for (let i = 0; i < lectures.length; i++) {
     if (Utils.getLectureId(lectures[i].url) == thisLectureId) {
@@ -9,7 +10,8 @@ function warnIfOverlapping(lectures) {
     }
   }
 
-  const lecture = Service.getLectureFromDetailDocument(document);
+  const lecturesDictionary =
+    Utils.convertLectureDictionaryWithoutDate(lectures);
   const datePart = lecture.dateStr?.split("(")[0].trim();
   const [startTime, endTime] = lecture.timeRangeStr?.split(" ~ ") ?? [];
   if (!datePart || !startTime || !endTime) {
@@ -31,6 +33,4 @@ function warnIfOverlapping(lectures) {
   }
 }
 
-Service.getAllLectures()
-  .then(warnIfOverlapping)
-  .catch((error) => console.error(error));
+warnIfOverlapping().catch((error) => console.error(error));

@@ -120,7 +120,7 @@ const Service = (() => {
     );
   }
 
-  async function readCurrentHistory(readPages, startDate, retryOrder = true) {
+  async function readCurrentHistory(readPages, input, retryOrder = true) {
     const path = Utils.getLectureHistoryPath();
     let retriedGeneration = retryOrder ? null : Cache.historyGeneration;
     // A foreground reader still needs a result if the popup clears its scan.
@@ -138,7 +138,7 @@ const Service = (() => {
         const result = await readPages(
           path,
           { ...firstPage, isCurrent, canRetryOrder, cache },
-          startDate,
+          input,
         );
         if (isCurrent()) return result;
       } catch (error) {
@@ -394,7 +394,7 @@ const Service = (() => {
     };
   }
 
-  async function getAllLectures(path, firstPage) {
+  async function getAllLectures(path, firstPage, { allowPartial = true } = {}) {
     const lectures = [];
     const totalPages = firstPage.totalPages;
     const cachedPast = Cache.readPastLectureCache(path);
@@ -444,6 +444,7 @@ const Service = (() => {
       ).catch((error) => {
         // Keep verified overlap warnings if only the additional tail scan failed.
         if (
+          !allowPartial ||
           !hadCompleteCache ||
           missingHistoryIds.size > 0 ||
           !firstPage.isCurrent() ||
@@ -465,7 +466,7 @@ const Service = (() => {
   }
 
   return {
-    getAllLectures: () => readCurrentHistory(getAllLectures),
+    getAllLectures: (options) => readCurrentHistory(getAllLectures, options),
     getCalendarLectures: (startDate, retryOrder) =>
       readCurrentHistory(getCalendarLectures, startDate, retryOrder),
     getLectureDetail,

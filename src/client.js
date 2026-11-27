@@ -253,7 +253,7 @@ const Client = (() => {
         capacityText === undefined ? undefined : getPeopleCount(capacityText),
       isApproved: approvedText ? approvedText === "OK" : null,
       applyId: cancelBtn
-        ? cancelBtn.getAttribute("onclick").split("'")[3]
+        ? cancelBtn.getAttribute("onclick")?.split("'")[3]
         : null,
     };
   }
