@@ -125,7 +125,7 @@ const Service = (() => {
       const generation = Cache.historyGeneration;
       const isCurrent = () => generation === Cache.historyGeneration;
       const canRetryOrder = retriedGeneration !== generation;
-      const cache = canRetryOrder ? "default" : "no-store";
+      const cache = canRetryOrder ? "no-cache" : "no-store";
       try {
         const requestedAt = Date.now();
         const firstPage = await Client.fetchLectureHistoryHead(path, 1, cache);

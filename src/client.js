@@ -244,7 +244,8 @@ const Client = (() => {
   }
 
   // Network requests
-  async function fetchDocument(url, cache = "default") {
+  // Once the extension needs fresh data, revalidate any cached HTTP response.
+  async function fetchDocument(url, cache = "no-cache") {
     const res = await fetch(url, { credentials: "include", cache });
     if (!res.ok) {
       throw new Error(`Lecture request failed (HTTP ${res.status})`);
