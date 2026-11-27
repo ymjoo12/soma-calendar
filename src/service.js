@@ -250,16 +250,6 @@ const Service = (() => {
   }
 
   // History pagination
-  function cachePastLecturesFromPage(path, pageLectures, startDate) {
-    const pastLectures = pageLectures.filter(
-      (lecture) => lecture.startAt < startDate,
-    );
-    if (pastLectures.length > 0) {
-      Cache.writePastLectureCache(path, pastLectures);
-    }
-    return pastLectures;
-  }
-
   function getMissingHistoryLectureIds(path, liveLectures) {
     const liveIds = getLectureCacheIds(liveLectures);
     return new Set(
@@ -314,16 +304,9 @@ const Service = (() => {
       );
       if (!firstPage.isCurrent()) return;
       previousLectureCount += pageLectures.length;
-      const pastLectures = cachePastLecturesFromPage(
-        path,
-        pageLectures,
-        startDate,
-      );
-      const hasCurrentLectures = pastLectures.length !== pageLectures.length;
-      const lecturesForPage = hasCurrentLectures
-        ? pageLectures
-        : includePastLectures
-          ? pastLectures
+      const lecturesForPage =
+        includePastLectures || !isPastLecturePage(pageLectures, startDate)
+          ? pageLectures
           : [];
 
       if (onPage && lecturesForPage.length > 0) {
@@ -374,7 +357,6 @@ const Service = (() => {
         fetchedLectures.length,
       );
       if (!firstPage.isCurrent()) return;
-      cachePastLecturesFromPage(path, pageLectures, startDate);
       fetchedLectures.push(...pageLectures);
 
       if (isPastLecturePage(pageLectures, startDate)) {
@@ -449,8 +431,6 @@ const Service = (() => {
         lectures.length,
       );
       if (!firstPage.isCurrent()) return;
-      cachePastLecturesFromPage(path, pageLectures, startDate);
-
       lectures.push(...pageLectures);
       if (isPastLecturePage(pageLectures, startDate)) {
         firstPastPage = page;

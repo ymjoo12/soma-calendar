@@ -790,20 +790,6 @@ const Cache = (() => {
     );
   }
 
-  function writePastLectureCache(path, lectures, complete = false) {
-    const pastLectures = lectures.filter((lecture) =>
-      isPastLectureFields(lecture),
-    );
-    if (pastLectures.length === 0) {
-      return;
-    }
-
-    writeLectureRecords(pastLectures);
-    if (complete) {
-      writePastLectureState(path, true);
-    }
-  }
-
   function markPastLectureCacheComplete(path) {
     writePastLectureState(path, true);
   }
@@ -926,6 +912,5 @@ const Cache = (() => {
     removeHistoryLectureIds,
     updateLectureCache,
     writeHistoryPageCache,
-    writePastLectureCache,
   };
 })();
